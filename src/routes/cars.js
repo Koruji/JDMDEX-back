@@ -20,12 +20,18 @@ const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (!file.mimetype.startsWith('image/')) {
+    const allowedExts = /\.(jpe?g|png|webp|gif|heic|heif)$/i;
+    const allowedMime = file.mimetype.startsWith('image/') || file.mimetype === 'application/octet-stream';
+    if (!allowedMime && !allowedExts.test(file.originalname)) {
       return cb(new Error('Only images are allowed'));
     }
     cb(null, true);
   },
 });
+
+const toInt = (v) => (v === '' || v == null) ? null : (parseInt(v) || null);
+const toFloat = (v) => (v === '' || v == null) ? null : (parseFloat(v) || null);
+const toStr = (v) => (v === '' || v == null) ? null : String(v);
 
 function carWithPhotos(car) {
   const photos = db
@@ -59,7 +65,11 @@ router.post('/', upload.array('photos', 10), (req, res) => {
       `INSERT INTO cars (name, brand, year, horsepower, engine, mileage, owner, location, latitude, longitude)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(name, brand, year, horsepower, engine, mileage, owner, location, latitude, longitude);
+    .run(
+      name, toStr(brand), toInt(year), toInt(horsepower),
+      toStr(engine), toInt(mileage), toStr(owner),
+      toStr(location), toFloat(latitude), toFloat(longitude)
+    );
 
   const carId = result.lastInsertRowid;
 
