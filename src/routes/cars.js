@@ -1,24 +1,13 @@
 const express = require('express');
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 const pool = require('../db/database');
 const { authenticateToken } = require('../middleware/auth');
+const { uploadFile, deleteFile, generateFilePath } = require('../services/bunny');
 
 const router = express.Router();
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '../../uploads'));
-  },
-  filename: (req, file, cb) => {
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, `${unique}${path.extname(file.originalname)}`);
-  },
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedExts = /\.(jpe?g|png|webp|gif|heic|heif)$/i;
@@ -33,6 +22,8 @@ const upload = multer({
 const toInt = (v) => (v === '' || v == null) ? null : (parseInt(v) || null);
 const toFloat = (v) => (v === '' || v == null) ? null : (parseFloat(v) || null);
 const toStr = (v) => (v === '' || v == null) ? null : String(v);
+
+const BUNNY_PULL_ZONE = process.env.BUNNY_PULL_ZONE || 'jdmdex-cdn.loocist23.fr';
 
 /**
  * @swagger
@@ -147,7 +138,11 @@ async function carWithPhotos(car, connection) {
     'SELECT * FROM photos WHERE car_id = ? ORDER BY is_primary DESC, created_at ASC',
     [car.id]
   );
-  return { ...car, photos };
+  const photosWithUrls = photos.map(photo => ({
+    ...photo,
+    url: `https://${BUNNY_PULL_ZONE}/${photo.filename}`
+  }));
+  return { ...car, photos: photosWithUrls };
 }
 
 /**
@@ -336,15 +331,10 @@ router.post('/', authenticateToken, upload.array('photos', 10), async (req, res)
   const { name, brand, year, horsepower, engine, mileage, owner, location, latitude, longitude } = req.body;
 
   if (!name) {
-    // Supprimer les fichiers uploadés si la création échoue
-    if (req.files && req.files.length > 0) {
-      req.files.forEach(file => {
-        const filePath = path.join(__dirname, '../../uploads', file.filename);
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      });
-    }
     return res.status(400).json({ error: 'name is required' });
   }
+
+  const uploadedFiles = [];
 
   try {
     const connection = await pool.getConnection();
@@ -360,16 +350,18 @@ router.post('/', authenticateToken, upload.array('photos', 10), async (req, res)
 
     const carId = result.insertId;
 
-    // Ajouter les photos
+    // Upload photos to Bunny CDN with user/car directory structure
     if (req.files && req.files.length > 0) {
-      await connection.query(
-        'INSERT INTO photos (car_id, filename, is_primary) VALUES ?',
-        [req.files.map((file, idx) => [
-          carId, 
-          file.filename, 
-          idx === 0 ? 1 : 0
-        ])]
-      );
+      for (const [idx, file] of req.files.entries()) {
+        const filePath = generateFilePath(req.user.id, carId, file.originalname);
+        const fileUrl = await uploadFile(file.buffer, filePath);
+        uploadedFiles.push(filePath);
+        
+        await connection.query(
+          'INSERT INTO photos (car_id, filename, is_primary) VALUES (?, ?, ?)',
+          [carId, filePath, idx === 0 ? 1 : 0]
+        );
+      }
     }
 
     // Récupérer la voiture avec ses photos
@@ -385,12 +377,11 @@ router.post('/', authenticateToken, upload.array('photos', 10), async (req, res)
   } catch (error) {
     console.error('Error creating car:', error);
     
-    // Supprimer les fichiers uploadés en cas d'erreur
-    if (req.files && req.files.length > 0) {
-      req.files.forEach(file => {
-        const filePath = path.join(__dirname, '../../uploads', file.filename);
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      });
+    // Supprimer les fichiers uploadés sur Bunny en cas d'erreur
+    if (uploadedFiles.length > 0) {
+      for (const fileName of uploadedFiles) {
+        await deleteFile(fileName).catch(() => {});
+      }
     }
     
     res.status(500).json({ error: 'An error occurred while creating the car.' });
@@ -550,16 +541,15 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Car not found or not authorized.' });
     }
 
-    // Supprimer les photos du système de fichiers
+    // Supprimer les photos de Bunny CDN
     const [photos] = await connection.query(
       'SELECT filename FROM photos WHERE car_id = ?',
       [req.params.id]
     );
     
-    photos.forEach((p) => {
-      const filePath = path.join(__dirname, '../../uploads', p.filename);
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-    });
+    for (const p of photos) {
+      await deleteFile(p.filename).catch(() => {});
+    }
 
     // Supprimer la voiture (et ses photos via CASCADE)
     await connection.query('DELETE FROM cars WHERE id = ?', [req.params.id]);
@@ -615,6 +605,8 @@ router.delete('/:id', authenticateToken, async (req, res) => {
  */
 // POST /api/cars/:id/photos - Ajouter des photos à une voiture
 router.post('/:id/photos', authenticateToken, upload.array('photos', 10), async (req, res) => {
+  const uploadedFiles = [];
+
   try {
     const connection = await pool.getConnection();
     
@@ -625,13 +617,6 @@ router.post('/:id/photos', authenticateToken, upload.array('photos', 10), async 
     );
     
     if (cars.length === 0) {
-      // Supprimer les fichiers uploadés
-      if (req.files && req.files.length > 0) {
-        req.files.forEach(file => {
-          const filePath = path.join(__dirname, '../../uploads', file.filename);
-          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        });
-      }
       return res.status(404).json({ error: 'Car not found or not authorized.' });
     }
 
@@ -645,15 +630,17 @@ router.post('/:id/photos', authenticateToken, upload.array('photos', 10), async 
       [req.params.id]
     );
 
-    // Ajouter les nouvelles photos
-    await connection.query(
-      'INSERT INTO photos (car_id, filename, is_primary) VALUES ?',
-      [req.files.map((file, idx) => [
-        req.params.id,
-        file.filename,
-        !existingPrimary.length && idx === 0 ? 1 : 0
-      ])]
-    );
+    // Upload photos to Bunny CDN with user/car directory structure
+    for (const [idx, file] of req.files.entries()) {
+      const filePath = generateFilePath(req.user.id, req.params.id, file.originalname);
+      await uploadFile(file.buffer, filePath);
+      uploadedFiles.push(filePath);
+      
+      await connection.query(
+        'INSERT INTO photos (car_id, filename, is_primary) VALUES (?, ?, ?)',
+        [req.params.id, filePath, !existingPrimary.length && idx === 0 ? 1 : 0]
+      );
+    }
 
     // Récupérer la voiture avec ses photos
     const [carsWithPhotos] = await connection.query(
@@ -668,12 +655,11 @@ router.post('/:id/photos', authenticateToken, upload.array('photos', 10), async 
   } catch (error) {
     console.error('Error adding photos:', error);
     
-    // Supprimer les fichiers uploadés en cas d'erreur
-    if (req.files && req.files.length > 0) {
-      req.files.forEach(file => {
-        const filePath = path.join(__dirname, '../../uploads', file.filename);
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      });
+    // Supprimer les fichiers uploadés sur Bunny en cas d'erreur
+    if (uploadedFiles.length > 0) {
+      for (const fileName of uploadedFiles) {
+        await deleteFile(fileName).catch(() => {});
+      }
     }
     
     res.status(500).json({ error: 'An error occurred while adding photos.' });
@@ -735,9 +721,8 @@ router.delete('/:id/photos/:photoId', authenticateToken, async (req, res) => {
 
     const photo = photos[0];
 
-    // Supprimer le fichier
-    const filePath = path.join(__dirname, '../../uploads', photo.filename);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    // Supprimer le fichier de Bunny CDN
+    await deleteFile(photo.filename).catch(() => {});
 
     // Supprimer la photo de la base de données
     await connection.query('DELETE FROM photos WHERE id = ?', [req.params.photoId]);
