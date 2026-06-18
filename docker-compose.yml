@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  mariadb:
+    image: mariadb:10.11
+    container_name: jdmdex-mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-jdmdex}
+      MYSQL_USER: ${MYSQL_USER:-jdmdex_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-jdmdex_pass}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: jdmdex-app
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${PORT:-3000}
+      MYSQL_HOST: ${MYSQL_HOST:-mariadb}
+      MYSQL_PORT: ${MYSQL_PORT:-3306}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-jdmdex}
+      MYSQL_USER: ${MYSQL_USER:-jdmdex_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-jdmdex_pass}
+      JWT_SECRET: ${JWT_SECRET:-supersecretjdmdexkey12345}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+      BUNNY_API_KEY: ${BUNNY_API_KEY}
+      BUNNY_STORAGE_ZONE: ${BUNNY_STORAGE_ZONE:-jdmdex}
+      BUNNY_PULL_ZONE: ${BUNNY_PULL_ZONE:-jdmdex-cdn.loocist23.fr}
+    restart: unless-stopped
+
+volumes:
+  mariadb_data:
