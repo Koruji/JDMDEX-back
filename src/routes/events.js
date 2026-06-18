@@ -34,11 +34,11 @@ router.get('/', async (req, res) => {
     
     const [events] = await connection.query(
       `SELECT e.id, e.name, e.date_start, e.date_end, e.location, e.type, e.notes, 
-              u.user_id, u.username, u.profil_img_url,
+              u.id, u.username, u.profil_img_url,
               e.created_at, e.updated_at,
               COUNT(ec.id) as comments_count
        FROM events e
-       LEFT JOIN users u ON e.user_id = u.user_id
+       LEFT JOIN users u ON e.user_id = u.id
        LEFT JOIN event_comments ec ON e.id = ec.event_id
        GROUP BY e.id
        ORDER BY e.date_start ASC`
@@ -142,7 +142,7 @@ router.post('/', authenticateToken, async (req, res) => {
               e.location, e.type, e.notes, e.user_id, e.created_at, e.updated_at,
               u.username, u.profil_img_url
        FROM events e
-       LEFT JOIN users u ON e.user_id = u.user_id
+       LEFT JOIN users u ON e.user_id = u.id
        WHERE e.id = ?`,
       [eventId]
     );
@@ -200,9 +200,9 @@ router.get('/:id', async (req, res) => {
     const [events] = await connection.query(
       `SELECT e.id, e.name, e.date_start as dateStart, e.date_end as dateEnd, 
               e.location, e.type, e.notes, e.user_id, e.created_at, e.updated_at,
-              u.user_id as owner_id, u.username as owner_username, u.profil_img_url as owner_profil_img_url
+              u.id as owner_id, u.username as owner_username, u.profil_img_url as owner_profil_img_url
        FROM events e
-       LEFT JOIN users u ON e.user_id = u.user_id
+       LEFT JOIN users u ON e.user_id = u.id
        WHERE e.id = ?`,
       [req.params.id]
     );
@@ -216,7 +216,7 @@ router.get('/:id', async (req, res) => {
       `SELECT ec.id, ec.event_id, ec.user_id, ec.text, ec.created_at,
               u.username, u.profil_img_url
        FROM event_comments ec
-       LEFT JOIN users u ON ec.user_id = u.user_id
+       LEFT JOIN users u ON ec.user_id = u.id
        WHERE ec.event_id = ?
        ORDER BY ec.created_at ASC`,
       [req.params.id]
@@ -445,7 +445,7 @@ router.get('/:id/comments', async (req, res) => {
       `SELECT ec.id, ec.event_id, ec.user_id, ec.text, ec.created_at,
               u.username, u.profil_img_url
        FROM event_comments ec
-       LEFT JOIN users u ON ec.user_id = u.user_id
+       LEFT JOIN users u ON ec.user_id = u.id
        WHERE ec.event_id = ?
        ORDER BY ec.created_at ASC`,
       [req.params.id]
@@ -540,7 +540,7 @@ router.post('/:id/comments', authenticateToken, async (req, res) => {
       `SELECT ec.id, ec.event_id, ec.user_id, ec.text, ec.created_at,
               u.username, u.profil_img_url
        FROM event_comments ec
-       LEFT JOIN users u ON ec.user_id = u.user_id
+       LEFT JOIN users u ON ec.user_id = u.id
        WHERE ec.id = ?`,
       [commentId]
     );
@@ -643,7 +643,7 @@ router.put('/:id/comments/:commentId', authenticateToken, async (req, res) => {
       `SELECT ec.id, ec.event_id, ec.user_id, ec.text, ec.created_at,
               u.username, u.profil_img_url
        FROM event_comments ec
-       LEFT JOIN users u ON ec.user_id = u.user_id
+       LEFT JOIN users u ON ec.user_id = u.id
        WHERE ec.id = ?`,
       [req.params.commentId]
     );

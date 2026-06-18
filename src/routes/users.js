@@ -1,8 +1,23 @@
 const express = require('express');
+const multer = require('multer');
 const pool = require('../db/database');
 const { authenticateToken } = require('../middleware/auth');
+const { uploadFile, deleteFile, generateProfilePath } = require('../services/bunny');
 
 const router = express.Router();
+
+const profileUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedExts = /\.(jpe?g|png|webp|gif|heic|heif)$/i;
+    const allowedMime = file.mimetype.startsWith('image/') || file.mimetype === 'application/octet-stream';
+    if (!allowedMime && !allowedExts.test(file.originalname)) {
+      return cb(new Error('Only images are allowed'));
+    }
+    cb(null, true);
+  },
+});
 
 /**
  * @swagger
@@ -27,7 +42,7 @@ const router = express.Router();
  *             schema:
  *               type: object
  *               properties:
- *                 user_id:
+ *                 id:
  *                   type: integer
  *                   description: User ID
  *                 username:
@@ -59,7 +74,7 @@ router.get('/me', authenticateToken, async (req, res) => {
     const connection = await pool.getConnection();
     
     const [users] = await connection.query(
-      'SELECT user_id, username, email, social_media, profil_img_url, created_at, updated_at FROM users WHERE user_id = ?',
+      'SELECT id, username, email, social_media, profil_img_url, created_at, updated_at FROM users WHERE id = ?',
       [req.user.id]
     );
     
@@ -112,7 +127,7 @@ router.get('/me', authenticateToken, async (req, res) => {
  *             schema:
  *               type: object
  *               properties:
- *                 user_id:
+ *                 id:
  *                   type: integer
  *                 username:
  *                   type: string
@@ -136,11 +151,11 @@ router.get('/me', authenticateToken, async (req, res) => {
  *       404:
  *         description: User not found
  */
-router.put('/me', authenticateToken, async (req, res) => {
-  const { username, email, social_media, profil_img_url } = req.body;
+router.put('/me', authenticateToken, profileUpload.single('profil_img'), async (req, res) => {
+  const { username, email, social_media } = req.body;
 
-  if (!username && !email) {
-    return res.status(400).json({ error: 'At least username or email must be provided.' });
+  if (!username && !email && !req.file) {
+    return res.status(400).json({ error: 'At least username, email, or profil_img must be provided.' });
   }
 
   try {
@@ -149,7 +164,7 @@ router.put('/me', authenticateToken, async (req, res) => {
     // Vérifier si le username ou email existe déjà (si fourni)
     if (username) {
       const [existing] = await connection.query(
-        'SELECT user_id FROM users WHERE username = ? AND user_id != ?',
+        'SELECT id FROM users WHERE username = ? AND id != ?',
         [username, req.user.id]
       );
       if (existing.length > 0) {
@@ -159,11 +174,36 @@ router.put('/me', authenticateToken, async (req, res) => {
 
     if (email) {
       const [existing] = await connection.query(
-        'SELECT user_id FROM users WHERE email = ? AND user_id != ?',
+        'SELECT id FROM users WHERE email = ? AND id != ?',
         [email, req.user.id]
       );
       if (existing.length > 0) {
         return res.status(409).json({ error: 'Email already exists.' });
+      }
+    }
+
+    // Gérer l'upload de l'image de profil
+    let profilImgUrl = null;
+    let oldProfilImgPath = null;
+    
+    if (req.file) {
+      // Récupérer l'ancienne image de profil pour la supprimer
+      const [oldUser] = await connection.query(
+        'SELECT profil_img_url FROM users WHERE id = ?',
+        [req.user.id]
+      );
+      
+      if (oldUser[0] && oldUser[0].profil_img_url) {
+        oldProfilImgPath = oldUser[0].profil_img_url.replace(`https://${process.env.BUNNY_PULL_ZONE || 'jdmdex-cdn.loocist23.fr'}/`, '');
+      }
+      
+      // Upload de la nouvelle image
+      const filePath = generateProfilePath(req.user.id, req.file.originalname);
+      profilImgUrl = await uploadFile(req.file.buffer, filePath);
+      
+      // Supprimer l'ancienne image après upload réussi
+      if (oldProfilImgPath) {
+        await deleteFile(oldProfilImgPath).catch(() => {});
       }
     }
 
@@ -175,13 +215,13 @@ router.put('/me', authenticateToken, async (req, res) => {
         social_media = COALESCE(?, social_media),
         profil_img_url = COALESCE(?, profil_img_url),
         updated_at = CURRENT_TIMESTAMP
-       WHERE user_id = ?`,
-      [username, email, social_media, profil_img_url, req.user.id]
+       WHERE id = ?`,
+      [username, email, social_media, profilImgUrl, req.user.id]
     );
 
     // Récupérer l'utilisateur mis à jour
     const [users] = await connection.query(
-      'SELECT user_id, username, email, social_media, profil_img_url, created_at, updated_at FROM users WHERE user_id = ?',
+      'SELECT id, username, email, social_media, profil_img_url, created_at, updated_at FROM users WHERE id = ?',
       [req.user.id]
     );
     
@@ -215,7 +255,7 @@ router.put('/me', authenticateToken, async (req, res) => {
  *             schema:
  *               type: object
  *               properties:
- *                 user_id:
+ *                 id:
  *                   type: integer
  *                 username:
  *                   type: string
@@ -237,7 +277,7 @@ router.get('/:id', async (req, res) => {
     
     // Récupérer uniquement les infos publiques (sans email)
     const [users] = await connection.query(
-      'SELECT user_id, username, social_media, profil_img_url, created_at FROM users WHERE user_id = ?',
+      'SELECT id, username, social_media, profil_img_url, created_at FROM users WHERE id = ?',
       [req.params.id]
     );
     
