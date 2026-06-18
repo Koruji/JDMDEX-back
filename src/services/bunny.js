@@ -95,6 +95,17 @@ function generateFilePath(userId, carId, originalName) {
 }
 
 /**
+ * Generate a unique file path for profile pictures
+ * @param {number} userId - User ID
+ * @param {string} originalName - Original file name
+ * @returns {string} Full path like users/1/profile/123456789.jpg
+ */
+function generateProfilePath(userId, originalName) {
+  const fileName = generateFileName(originalName);
+  return `users/${userId}/profile/${fileName}`;
+}
+
+/**
  * Extract file path components from a full Bunny path
  * @param {string} filePath - Full path like users/1/cars/5/123456789.jpg
  * @returns {string} Just the filename part
@@ -109,6 +120,7 @@ module.exports = {
   deleteFile,
   generateFileName,
   generateFilePath,
+  generateProfilePath,
   extractFileName,
   getPublicUrl: (filePath) => `https://${BUNNY_PULL_ZONE}/${filePath}`,
 };
