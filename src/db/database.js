@@ -20,19 +20,21 @@ async function initializeDatabase() {
   try {
     connection = await pool.getConnection();
     
-    // Créer la table users
+    // Créer la table users (selon DATABASE_MIGRATION.md)
     await connection.query(`
       CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(50) NOT NULL UNIQUE,
         email VARCHAR(100) NOT NULL UNIQUE,
         password_hash VARCHAR(255) NOT NULL,
+        social_media VARCHAR(100),
+        profil_img_url VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
     `);
 
-    // Créer la table cars avec user_id
+    // Créer la table cars (selon DATABASE_MIGRATION.md + user_id pour l'isolation)
     await connection.query(`
       CREATE TABLE IF NOT EXISTS cars (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -53,7 +55,7 @@ async function initializeDatabase() {
       )
     `);
 
-    // Créer la table photos
+    // Créer la table photos (selon DATABASE_MIGRATION.md)
     await connection.query(`
       CREATE TABLE IF NOT EXISTS photos (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -65,7 +67,49 @@ async function initializeDatabase() {
       )
     `);
 
-    console.log('Database initialized successfully');
+    // Créer la table events (selon DATABASE_MIGRATION.md)
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS events (
+        id VARCHAR(36) PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        date_start TIMESTAMP NOT NULL,
+        date_end TIMESTAMP NOT NULL,
+        location VARCHAR(255),
+        type ENUM('rasso', 'expo', 'autre') NOT NULL,
+        notes TEXT,
+        user_id INT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+      )
+    `);
+
+    // Créer la table event_comments (selon DATABASE_MIGRATION.md)
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS event_comments (
+        id VARCHAR(36) PRIMARY KEY,
+        event_id VARCHAR(36) NOT NULL,
+        user_id INT NOT NULL,
+        text TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Créer la table favorites (selon DATABASE_MIGRATION.md)
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS favorites (
+        user_id INT NOT NULL,
+        car_id INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, car_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (car_id) REFERENCES cars(id) ON DELETE CASCADE
+      )
+    `);
+
+    console.log('Database initialized successfully with all tables');
   } catch (error) {
     console.error('Error initializing database:', error);
     throw error;

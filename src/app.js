@@ -5,6 +5,9 @@ require('dotenv').config();
 
 const carsRouter = require('./routes/cars');
 const authRouter = require('./routes/auth');
+const usersRouter = require('./routes/users');
+const eventsRouter = require('./routes/events');
+const favoritesRouter = require('./routes/favorites');
 const { swaggerUi, specs } = require('./swagger');
 
 const app = express();
@@ -19,8 +22,12 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // Swagger documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
 
+// Routes
 app.use('/api/auth', authRouter);
+app.use('/api/users', usersRouter);
 app.use('/api/cars', carsRouter);
+app.use('/api/events', eventsRouter);
+app.use('/api/users/favorites', favoritesRouter);
 
 // 404 handler for undefined routes
 app.use((req, res) => {

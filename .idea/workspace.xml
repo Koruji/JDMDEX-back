@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="d09daacd-4d6c-43c5-8868-6266711a7046" name="Changes" comment="feat: migrate to MariaDB with JWT auth, Bunny CDN storage and Swagger docs&#10;  - Replace SQLite with MariaDB using mysql2 &#10;  - Add JWT authentication system (register, login, protected routes)&#10;  - Implement user data isolation (user_id foreign key)&#10;  - Integrate Bunny CDN for image storage (upload/delete)&#10;  - Add Swagger UI for API documentation (/api-docs)&#10;  - Update DOCS.md with all endpoints and curl examples &#10;  - Add docker-compose.yml for MariaDB and ▁&#10;  - Fix local storage uploads removal">
+      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/app.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/app.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/db/database.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/db/database.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/routes/cars.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/routes/cars.js" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="CopilotPersistence">
+    <persistenceIdMap>
+      <entry key="_/home/loocist/WebstormProjects/JDMDEX-back" value="3FGRO3kiliXpFzTxY5E5WWbb82w" />
+    </persistenceIdMap>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="develop" />
+      </map>
+    </option>
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;Loocist23&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/Koruji/JDMDEX-back.git&quot;,
+    &quot;accountId&quot;: &quot;db5b21fe-9590-4978-9d66-e494bebb6650&quot;
+  },
+  &quot;recentNewPullRequestHead&quot;: {
+    &quot;server&quot;: {
+      &quot;useHttp&quot;: false,
+      &quot;host&quot;: &quot;github.com&quot;,
+      &quot;port&quot;: null,
+      &quot;suffix&quot;: null
+    },
+    &quot;owner&quot;: &quot;Koruji&quot;,
+    &quot;repository&quot;: &quot;JDMDEX-back&quot;
+  }
+}</component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="CurrentFile" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 1
+}</component>
+  <component name="ProjectId" id="3FGRO3kiliXpFzTxY5E5WWbb82w" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "git-widget-placeholder": "features/database-migration-complete",
+    "last_opened_file_path": "/home/loocist/WebstormProjects/JDMDEX-back",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$" />
+    </key>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-9b0f141eb926-JavaScript-WS-253.29346.242" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="d09daacd-4d6c-43c5-8868-6266711a7046" name="Changes" comment="" />
+      <created>1781699384131</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1781699384131</updated>
+      <workItem from="1781699385220" duration="4698000" />
+      <workItem from="1781767348332" duration="772000" />
+      <workItem from="1781768521129" duration="10344000" />
+    </task>
+    <task id="LOCAL-00001" summary="feat: just a simple return">
+      <option name="closed" value="true" />
+      <created>1781705663723</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1781705663723</updated>
+    </task>
+    <task id="LOCAL-00002" summary="  feat: migrate from SQLite to MariaDB with JWT authentication and Swagger &#10;  - Replace better-sqlite3 with mysql2 for MariaDB     &#10;  - Add user authentication system with JWT &#10;  - Implement data isolation (user_id foreign key in cars table             &#10;  - Add Swagger UI for interactive API    &#10;  - Include comprehensive DOCS.md with curl   &#10;  - Update docker-compose.yml for MariaDB&#10;  - Fix frontend static files">
+      <option name="closed" value="true" />
+      <created>1781772495454</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1781772495454</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="feat: just a simple return" />
+    <MESSAGE value="  feat: migrate from SQLite to MariaDB with JWT authentication and Swagger &#10;  - Replace better-sqlite3 with mysql2 for MariaDB     &#10;  - Add user authentication system with JWT &#10;  - Implement data isolation (user_id foreign key in cars table             &#10;  - Add Swagger UI for interactive API    &#10;  - Include comprehensive DOCS.md with curl   &#10;  - Update docker-compose.yml for MariaDB&#10;  - Fix frontend static files" />
+    <MESSAGE value="feat: migrate to MariaDB with JWT auth, Bunny CDN storage and Swagger docs&#10;  - Replace SQLite with MariaDB using mysql2 &#10;  - Add JWT authentication system (register, login, protected routes)&#10;  - Implement user data isolation (user_id foreign key)&#10;  - Integrate Bunny CDN for image storage (upload/delete)&#10;  - Add Swagger UI for API documentation (/api-docs)&#10;  - Update DOCS.md with all endpoints and curl examples &#10;  - Add docker-compose.yml for MariaDB and ▁&#10;  - Fix local storage uploads removal" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: migrate to MariaDB with JWT auth, Bunny CDN storage and Swagger docs&#10;  - Replace SQLite with MariaDB using mysql2 &#10;  - Add JWT authentication system (register, login, protected routes)&#10;  - Implement user data isolation (user_id foreign key)&#10;  - Integrate Bunny CDN for image storage (upload/delete)&#10;  - Add Swagger UI for API documentation (/api-docs)&#10;  - Update DOCS.md with all endpoints and curl examples &#10;  - Add docker-compose.yml for MariaDB and ▁&#10;  - Fix local storage uploads removal" />
+  </component>
+</project>

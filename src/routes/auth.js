@@ -1,9 +1,24 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
+const multer = require('multer');
 const pool = require('../db/database');
 const { generateToken } = require('../middleware/auth');
+const { uploadFile, deleteFile, generateProfilePath } = require('../services/bunny');
 
 const router = express.Router();
+
+const profileUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedExts = /\.(jpe?g|png|webp|gif|heic|heif)$/i;
+    const allowedMime = file.mimetype.startsWith('image/') || file.mimetype === 'application/octet-stream';
+    if (!allowedMime && !allowedExts.test(file.originalname)) {
+      return cb(new Error('Only images are allowed'));
+    }
+    cb(null, true);
+  },
+});
 
 /**
  * @swagger
@@ -59,7 +74,7 @@ const router = express.Router();
  *       409:
  *         description: Username or email already exists
  */
-router.post('/register', async (req, res) => {
+router.post('/register', profileUpload.single('profil_img'), async (req, res) => {
   const { username, email, password } = req.body;
 
   // Validation des champs obligatoires
@@ -108,10 +123,26 @@ router.post('/register', async (req, res) => {
       [username, email, passwordHash]
     );
 
+    const userId = result.insertId;
+    let profilImgUrl = null;
+
+    // Upload de l'image de profil si fournie
+    if (req.file) {
+      const filePath = generateProfilePath(userId, req.file.originalname);
+      const url = await uploadFile(req.file.buffer, filePath);
+      profilImgUrl = url;
+      
+      // Mettre à jour l'utilisateur avec l'URL de l'image de profil
+      await connection.query(
+        'UPDATE users SET profil_img_url = ? WHERE id = ?',
+        [profilImgUrl, userId]
+      );
+    }
+
     // Récupérer l'utilisateur créé
     const [user] = await connection.query(
-      'SELECT id, username, email FROM users WHERE id = ?',
-      [result.insertId]
+      'SELECT id, username, email, profil_img_url FROM users WHERE id = ?',
+      [userId]
     );
 
     // Générer un token JWT
