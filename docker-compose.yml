@@ -38,8 +38,9 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-jdmdex_pass}
       JWT_SECRET: ${JWT_SECRET:-supersecretjdmdexkey12345}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
-    volumes:
-      - ./uploads:/app/uploads
+      BUNNY_API_KEY: ${BUNNY_API_KEY}
+      BUNNY_STORAGE_ZONE: ${BUNNY_STORAGE_ZONE:-jdmdex}
+      BUNNY_PULL_ZONE: ${BUNNY_PULL_ZONE:-jdmdex-cdn.loocist23.fr}
     restart: unless-stopped
 
 volumes:
