@@ -1,8 +1,9 @@
 # JDMDEX API Documentation
 
-Backend API for Japanese car Pokédex with JWT authentication and MariaDB database.
+Backend API for Japanese car Pokédex with JWT authentication, MariaDB database, and Bunny CDN for image storage.
 
 **Base URL:** `http://localhost:3000`
+**CDN URL:** `https://jdmdex-cdn.loocist23.fr/`
 
 ---
 
@@ -126,8 +127,9 @@ curl -X GET http://localhost:3000/api/cars \
       {
         "id": 1,
         "car_id": 1,
-        "filename": "123456789.jpg",
+        "filename": "users/1/cars/1/123456789.jpg",
         "is_primary": true,
+        "url": "https://jdmdex-cdn.loocist23.fr/users/1/cars/1/123456789.jpg",
         "created_at": "2024-01-15T10:30:00.000Z"
       }
     ]
@@ -419,6 +421,13 @@ curl -X POST http://localhost:3000/api/cars/recognize \
 
 ---
 
+## Notes
+
+- **Image Storage**: All images are uploaded directly to Bunny CDN with the structure `users/{userId}/cars/{carId}/{filename}`. Photo responses include a `url` field with the full CDN URL (e.g., `https://jdmdex-cdn.loocist23.fr/users/1/cars/5/1781775699116-964697260.png`).
+- **No Local Storage**: Files are not stored locally on the server.
+
+---
+
 ## Data Schemas
 
 ### User
@@ -456,8 +465,9 @@ curl -X POST http://localhost:3000/api/cars/recognize \
 {
   "id": 1,
   "car_id": 1,
-  "filename": "123456789.jpg",
+  "filename": "users/1/cars/1/123456789.jpg",
   "is_primary": true,
+  "url": "https://jdmdex-cdn.loocist23.fr/users/1/cars/1/123456789.jpg",
   "created_at": "2024-01-15T10:30:00.000Z"
 }
 ```
@@ -502,4 +512,9 @@ MYSQL_PASSWORD=jdmdex_pass
 
 JWT_SECRET=supersecretjdmdexkey12345
 JWT_EXPIRES_IN=24h
+
+# Bunny CDN Configuration
+BUNNY_API_KEY=your_bunny_storage_api_key
+BUNNY_STORAGE_ZONE=jdmdex
+BUNNY_PULL_ZONE=jdmdex-cdn.loocist23.fr
 ```
