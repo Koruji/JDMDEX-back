@@ -1,9 +1,11 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-
+require('dotenv').config();
 
 const carsRouter = require('./routes/cars');
+const authRouter = require('./routes/auth');
+const { swaggerUi, specs } = require('./swagger');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,12 +15,16 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// Swagger documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
+
+app.use('/api/auth', authRouter);
 app.use('/api/cars', carsRouter);
 
-app.use(express.static(path.join(__dirname, '../../front')));
-
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../../front/index.html'));
+// 404 handler for undefined routes
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found' });
 });
 
 if (require.main === module) {
