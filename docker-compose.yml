@@ -49,30 +49,29 @@ services:
         condition: service_healthy
 
   # Optional: MariaDB service (uncomment if you want DB in Docker)
-  # mariadb:
-  #   image: mariadb:10.11
-  #   container_name: jdmdex-mariadb
-  #   environment:
-  #     MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
-  #     MYSQL_DATABASE: ${MYSQL_DATABASE:-jdmdex}
-  #     MYSQL_USER: ${MYSQL_USER:-jdmdex_user}
-  #     MYSQL_PASSWORD: ${MYSQL_PASSWORD:-jdmdex_pass}
-  #   ports:
-  #     - "${MYSQL_PORT:-3306}:3306"
-  #   volumes:
-  #     - mariadb_data:/var/lib/mysql
-  #   restart: unless-stopped
-  #   healthcheck:
-  #     test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  #   networks:
-  #     - jdmdex-network
-
+  mariadb:
+    image: mariadb:10.11
+    container_name: jdmdex-mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-jdmdex}
+      MYSQL_USER: ${MYSQL_USER:-jdmdex_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-jdmdex_pass}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - jdmdex-network
 networks:
-  jdmdex-network:
-    driver: bridge
+ jdmdex-network:
+   driver: bridge
 
 # volumes:
 #   mariadb_data:
