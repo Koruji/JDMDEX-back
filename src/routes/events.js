@@ -33,8 +33,8 @@ router.get('/', async (req, res) => {
     const connection = await pool.getConnection();
     
     const [events] = await connection.query(
-      `SELECT e.id, e.name, e.date_start, e.date_end, e.location, e.type, e.notes, 
-              u.id, u.username, u.profil_img_url,
+      `SELECT e.id, e.name, e.date_start, e.date_end, e.location, e.type, e.notes,
+              u.id as owner_id, u.username, u.profil_img_url,
               e.created_at, e.updated_at,
               COUNT(ec.id) as comments_count
        FROM events e
@@ -634,7 +634,7 @@ router.put('/:id/comments/:commentId', authenticateToken, async (req, res) => {
     }
 
     await connection.query(
-      'UPDATE event_comments SET text = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE event_comments SET text = ? WHERE id = ?',
       [text, req.params.commentId]
     );
 
