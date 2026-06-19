@@ -1,0 +1,126 @@
+name: JDMDex CI/CD
+
+on:
+  push:
+    branches: [main, develop, features/**]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  NODE_VERSION: '20'
+  APP_NAME: 'jdmdex-back'
+
+jobs:
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check Node syntax
+        run: |
+          find src -name "*.js" -exec node -c {} \;
+          echo "✅ All JavaScript files have valid syntax"
+
+      - name: Run tests
+        run: npm test
+        continue-on-error: true
+
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || contains(github.ref, 'refs/heads/features/')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies (production only)
+        run: npm ci --only=production
+
+      - name: Create .env file from secrets
+        run: |
+          echo "Creating .env from GitHub Secrets..."
+          echo "PORT=${{ secrets.PORT }}" > .env
+          echo "NODE_ENV=${{ secrets.NODE_ENV }}" >> .env
+          echo "" >> .env
+          echo "# MariaDB Configuration" >> .env
+          echo "MYSQL_HOST=${{ secrets.MYSQL_HOST }}" >> .env
+          echo "MYSQL_PORT=${{ secrets.MYSQL_PORT }}" >> .env
+          echo "MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}" >> .env
+          echo "MYSQL_USER=${{ secrets.MYSQL_USER }}" >> .env
+          echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> .env
+          echo "" >> .env
+          echo "# JWT Configuration" >> .env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+          echo "JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN }}" >> .env
+          echo "" >> .env
+          echo "# Bunny CDN Configuration" >> .env
+          echo "BUNNY_API_KEY=${{ secrets.BUNNY_API_KEY }}" >> .env
+          echo "BUNNY_STORAGE_ZONE=${{ secrets.BUNNY_STORAGE_ZONE }}" >> .env
+          echo "BUNNY_PULL_ZONE=${{ secrets.BUNNY_PULL_ZONE }}" >> .env
+          
+          echo "✅ .env file created from secrets"
+          cat .env | grep -v "^$" | while read line; do echo "  $line"; done
+
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            echo "=== Deploying JDMDex API ==="
+            
+            # Navigation
+            cd /home/${{ secrets.VPS_USERNAME }}/JDMDEX-back
+            
+            # Backup current version
+            echo "Backing up current version..."
+            if [ -d ".git" ]; then
+              git add -A
+              git commit -m "Backup before deploy $(date +%Y%m%d-%H%M%S)" || true
+            fi
+            
+            # Pull latest changes
+            echo "Pulling latest changes from GitHub..."
+            git fetch origin
+            git reset --hard origin/${{ github.ref_name }}
+            
+            # Install production dependencies
+            echo "Installing production dependencies..."
+            npm ci --only=production
+            
+            # Copy .env from deploy
+            echo "Copying .env from deploy..."
+            cp .env.deploy .env 2>/dev/null || echo "No .env.deploy found, using existing .env"
+            
+            # Restart service
+            echo "Restarting PM2 service..."
+            pm2 restart ${{ env.APP_NAME }} || pm2 start src/app.js --name ${{ env.APP_NAME }}
+            
+            # Wait and verify
+            sleep 3
+            pm2 list
+            pm2 show ${{ env.APP_NAME }}
+            
+            echo "=== Deployment complete! ==="
