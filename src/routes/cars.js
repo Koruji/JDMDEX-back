@@ -481,7 +481,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
         mileage = ?, owner = ?, location = ?, latitude = ?, longitude = ?,
         updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
-      [name, brand, year, horsepower, engine, mileage, owner, location, latitude, longitude, req.params.id]
+      [name, toStr(brand), toInt(year), toInt(horsepower), toStr(engine),
+       toInt(mileage), toStr(owner), toStr(location), toFloat(latitude), toFloat(longitude), req.params.id]
     );
 
     const [updatedCars] = await connection.query(
@@ -526,6 +527,39 @@ router.put('/:id', authenticateToken, async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
+// PATCH /api/cars/:id - Mettre à jour le like
+router.patch('/:id', authenticateToken, async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+
+    const [cars] = await connection.query(
+      'SELECT * FROM cars WHERE id = ? AND user_id = ?',
+      [req.params.id, req.user.id]
+    );
+
+    if (cars.length === 0) {
+      connection.release();
+      return res.status(404).json({ error: 'Car not found or not authorized.' });
+    }
+
+    const liked = req.body.liked === true || req.body.liked === 1;
+
+    await connection.query(
+      'UPDATE cars SET liked = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [liked, req.params.id]
+    );
+
+    const [updated] = await connection.query('SELECT * FROM cars WHERE id = ?', [req.params.id]);
+    const car = await carWithPhotos(updated[0], connection);
+    connection.release();
+
+    res.json(car);
+  } catch (error) {
+    console.error('Error patching car:', error);
+    res.status(500).json({ error: 'An error occurred while updating the car.' });
+  }
+});
+
 // DELETE /api/cars/:id - Supprimer une voiture
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
