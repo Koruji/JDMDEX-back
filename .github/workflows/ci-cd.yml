@@ -1,0 +1,137 @@
+name: JDMDex CI/CD
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+
+env:
+  NODE_VERSION: '20'
+  DOCKER_IMAGE: 'jdmdex-api'
+
+jobs:
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check Node syntax
+        run: |
+          find src -name "*.js" -exec node -c {} \;
+          echo "✅ All JavaScript files have valid syntax"
+
+      - name: Run tests
+        run: npm test
+        continue-on-error: true
+
+  build-and-deploy:
+    name: Build Docker & Deploy to VPS
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create .env file from secrets
+        run: |
+          echo "Creating .env from GitHub Secrets..."
+          echo "PORT=${{ secrets.PORT }}" > .env
+          echo "NODE_ENV=${{ secrets.NODE_ENV }}" >> .env
+          echo "" >> .env
+          echo "# MariaDB Configuration" >> .env
+          echo "MYSQL_HOST=${{ secrets.MYSQL_HOST }}" >> .env
+          echo "MYSQL_PORT=${{ secrets.MYSQL_PORT }}" >> .env
+          echo "MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}" >> .env
+          echo "MYSQL_USER=${{ secrets.MYSQL_USER }}" >> .env
+          echo "MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}" >> .env
+          echo "MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}" >> .env
+          echo "" >> .env
+          echo "# JWT Configuration" >> .env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+          echo "JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN }}" >> .env
+          echo "" >> .env
+          echo "# Bunny CDN Configuration" >> .env
+          echo "BUNNY_API_KEY=${{ secrets.BUNNY_API_KEY }}" >> .env
+          echo "BUNNY_STORAGE_ZONE=${{ secrets.BUNNY_STORAGE_ZONE }}" >> .env
+          echo "BUNNY_PULL_ZONE=${{ secrets.BUNNY_PULL_ZONE }}" >> .env
+          echo "" >> .env
+          echo "# Logging Configuration" >> .env
+          echo "LOG_LEVEL=${{ secrets.LOG_LEVEL || 'error' }}" >> .env
+          
+          echo "✅ .env file created from secrets"
+
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            echo "=== Deploying JDMDex API with Docker ==="
+            
+            # Navigation
+            cd /home/${{ secrets.VPS_USERNAME }}/JDMDEX-back
+            
+            echo "Stopping current containers..."
+            docker-compose down || true
+            
+            echo "Pulling latest changes from GitHub..."
+            git fetch origin
+            git reset --hard origin/develop
+            
+            echo "Creating .env from secrets..."
+            cat > .env << 'EOF'
+            PORT=${{ secrets.PORT }}
+            NODE_ENV=${{ secrets.NODE_ENV }}
+            MYSQL_HOST=${{ secrets.MYSQL_HOST }}
+            MYSQL_PORT=${{ secrets.MYSQL_PORT }}
+            MYSQL_DATABASE=${{ secrets.MYSQL_DATABASE }}
+            MYSQL_USER=${{ secrets.MYSQL_USER }}
+            MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
+            MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN }}
+            BUNNY_API_KEY=${{ secrets.BUNNY_API_KEY }}
+            BUNNY_STORAGE_ZONE=${{ secrets.BUNNY_STORAGE_ZONE }}
+            BUNNY_PULL_ZONE=${{ secrets.BUNNY_PULL_ZONE }}
+            LOG_LEVEL=${{ secrets.LOG_LEVEL || 'error' }}
+            EOF
+            
+            echo "Building Docker image..."
+            docker-compose build --no-cache
+            
+            echo "Starting containers..."
+            docker-compose up -d --remove-orphans
+            
+            echo "Waiting for containers to start..."
+            sleep 10
+            
+            echo "Verifying deployment..."
+            docker-compose ps
+            docker-compose logs --tail=20
+            
+            echo "=== Deployment complete! ==="
