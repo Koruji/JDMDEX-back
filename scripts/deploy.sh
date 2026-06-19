@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # =============================================================================
-# JDMDex API Deployment Script
+# JDMDex API Deployment Script (Docker)
 # Usage: ./scripts/deploy.sh [branch]
-# Example: ./scripts/deploy.sh main
+# Example: ./scripts/deploy.sh develop
 # =============================================================================
 
 set -e
@@ -15,10 +15,9 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration
-APP_NAME="jdmdex-back"
+CONTAINER_NAME="jdmdex-api"
 REPO_URL="https://github.com/loocist/JDMDEX-back.git"
-DEPLOY_DIR="/home/$(whoami)/JDMDEX-back"
-BRANCH=${1:-main}
+BRANCH=${1:-develop}
 
 # Functions
 log_info() {
@@ -40,12 +39,24 @@ if [ "$(whoami)" = "root" ]; then
 fi
 
 # Check if in the right directory
-if [ ! -f "package.json" ]; then
+if [ ! -f "docker-compose.yml" ]; then
     log_error "Please run this script from the project root directory"
     exit 1
 fi
 
-log_info "Starting deployment of ${APP_NAME} from branch ${BRANCH}..."
+# Check if Docker is installed
+if ! command -v docker &> /dev/null; then
+    log_error "Docker is not installed. Please install Docker first."
+    exit 1
+fi
+
+# Check if docker-compose is installed
+if ! command -v docker-compose &> /dev/null; then
+    log_error "docker-compose is not installed. Please install it first."
+    exit 1
+fi
+
+log_info "Starting Docker deployment of ${CONTAINER_NAME} from branch ${BRANCH}..."
 
 # Step 1: Pull latest changes
 log_info "Pulling latest changes from GitHub..."
@@ -58,13 +69,9 @@ else
     exit 1
 fi
 
-# Step 2: Install production dependencies
-log_info "Installing production dependencies..."
-npm ci --only=production
-
-# Step 3: Verify .env exists
+# Step 2: Verify .env exists
 if [ ! -f ".env" ]; then
-    log_warn "No .env file found! Copying from .env.example if it exists..."
+    log_warn "No .env file found! Copying from .env.example..."
     if [ -f ".env.example" ]; then
         cp .env.example .env
         log_warn "⚠️  You MUST edit .env with real values!"
@@ -74,33 +81,42 @@ if [ ! -f ".env" ]; then
     fi
 fi
 
-# Step 4: Restart service with PM2
-log_info "Restarting service with PM2..."
-if pm2 list | grep -q "${APP_NAME}"; then
-    pm2 restart ${APP_NAME}
-    log_info "Service restarted successfully"
-else
-    pm2 start src/app.js --name ${APP_NAME}
-    pm2 save
-    pm2 startup
-    log_info "New service started and saved"
-fi
+# Step 3: Stop current containers
+log_info "Stopping current containers..."
+docker-compose down || true
 
-# Step 5: Verify service is running
-log_info "Verifying service..."
-sleep 3
-pm2 list
-pm2 show ${APP_NAME}
+# Step 4: Build and start with Docker Compose
+log_info "Building Docker image..."
+docker-compose build --no-cache
+
+log_info "Starting containers..."
+docker-compose up -d --remove-orphans
+
+# Step 5: Verify containers are running
+log_info "Verifying containers..."
+sleep 10
+
+docker-compose ps
 
 # Step 6: Check logs for errors
-log_info "Checking for errors in logs..."
-if pm2 logs ${APP_NAME} --lines 20 | grep -i "error\|fail\|exception" > /dev/null 2>&1; then
-    log_warn "⚠️  Potential errors found in logs. Check with: pm2 logs ${APP_NAME}"
+log_info "Checking container logs..."
+if docker-compose logs --tail=20 | grep -i "error\|fail\|exception" > /dev/null 2>&1; then
+    log_warn "⚠️  Potential errors found in logs. Check with: docker-compose logs"
 else
     log_info "✅ No errors detected in recent logs"
 fi
 
+# Step 7: Show running containers
+log_info "Running containers:"
+docker-compose ps
+
 log_info "=========================================="
-log_info "Deployment complete!"
-log_info "Service is running at: http://localhost:$(grep PORT .env | cut -d'=' -f2)"
+log_info "Docker deployment complete!"
+log_info "API is running at: http://localhost:$(grep PORT .env | cut -d'=' -f2 || echo '3000')"
 log_info "=========================================="
+
+# Show helpful commands
+log_info ""
+log_info "To view logs:       docker-compose logs -f ${CONTAINER_NAME}"
+log_info "To stop containers: docker-compose down"
+log_info "To restart:          docker-compose restart ${CONTAINER_NAME}"

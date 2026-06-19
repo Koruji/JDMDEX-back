@@ -1,25 +1,55 @@
-# Dockerfile pour JDMDEX Backend
-FROM node:18-alpine
+# ===========================================
+# JDMDex API - Dockerfile
+# Multi-stage build for production
+# ===========================================
 
-# Répertoire de travail
+# Stage 1: Build
+FROM node:20-alpine AS builder
+
 WORKDIR /app
 
-# Copier les fichiers de configuration
+# Copy package files
 COPY package*.json ./
-COPY .env.example ./
 
-# Installer les dépendances
-RUN npm install --production
+# Install all dependencies (including dev for build)
+RUN npm ci
 
-# Copier le code source
-COPY src/ ./src/
-COPY uploads/ ./uploads/
+# Copy source code
+COPY . .
 
-# Créer un répertoire pour les uploads s'il n'existe pas
-RUN mkdir -p uploads && touch uploads/.gitkeep
+# Stage 2: Production
+FROM node:20-alpine AS production
 
-# Exposer le port
+WORKDIR /app
+
+# Install only production dependencies
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Copy built files from builder
+COPY --from=builder /app/src ./src
+COPY --from=builder /app/uploads ./uploads
+COPY --from=builder /app/node_modules ./node_modules
+
+# Create logs directory
+RUN mkdir -p logs
+
+# Expose port
 EXPOSE 3000
 
-# Commande de démarrage
+# Set non-root user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+# Change ownership of app directory
+RUN chown -R nodejs:nodejs /app
+
+# Switch to non-root user
+USER nodejs
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api-docs || exit 1
+
+# Start the application
 CMD ["node", "src/app.js"]
