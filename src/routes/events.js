@@ -2,6 +2,7 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const pool = require('../db/database');
 const { authenticateToken } = require('../middleware/auth');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
@@ -52,7 +53,12 @@ router.get('/', async (req, res) => {
     connection.release();
     res.json(result);
   } catch (error) {
-    console.error('Error fetching events:', error);
+    logger.error('Error fetching events', {
+      method: 'GET',
+      path: '/api/events',
+      statusCode: 500,
+      error: error
+    });
     res.status(500).json({ error: 'An error occurred while fetching events.' });
   }
 });
@@ -158,7 +164,13 @@ router.post('/', authenticateToken, async (req, res) => {
 
     res.status(201).json(event);
   } catch (error) {
-    console.error('Error creating event:', error);
+    logger.error('Error creating event', {
+      method: 'POST',
+      path: '/api/events',
+      statusCode: 500,
+      error: error,
+      user: req.user ? { id: req.user.id } : null
+    });
     res.status(500).json({ error: 'An error occurred while creating event.' });
   }
 });
@@ -238,7 +250,12 @@ router.get('/:id', async (req, res) => {
     connection.release();
     res.json(event);
   } catch (error) {
-    console.error('Error fetching event:', error);
+    logger.error('Error fetching event by ID', {
+      method: 'GET',
+      path: `/api/events/${req.params.id}`,
+      statusCode: 500,
+      error: error
+    });
     res.status(500).json({ error: 'An error occurred while fetching event.' });
   }
 });
@@ -341,7 +358,13 @@ router.put('/:id', authenticateToken, async (req, res) => {
     connection.release();
     res.json(updatedEvents[0]);
   } catch (error) {
-    console.error('Error updating event:', error);
+    logger.error('Error updating event', {
+      method: 'PUT',
+      path: `/api/events/${req.params.id}`,
+      statusCode: 500,
+      error: error,
+      user: req.user ? { id: req.user.id } : null
+    });
     res.status(500).json({ error: 'An error occurred while updating event.' });
   }
 });
@@ -395,7 +418,13 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     connection.release();
     res.status(204).end();
   } catch (error) {
-    console.error('Error deleting event:', error);
+    logger.error('Error deleting event', {
+      method: 'DELETE',
+      path: `/api/events/${req.params.id}`,
+      statusCode: 500,
+      error: error,
+      user: req.user ? { id: req.user.id } : null
+    });
     res.status(500).json({ error: 'An error occurred while deleting event.' });
   }
 });
@@ -464,7 +493,12 @@ router.get('/:id/comments', async (req, res) => {
     connection.release();
     res.json(result);
   } catch (error) {
-    console.error('Error fetching comments:', error);
+    logger.error('Error fetching event comments', {
+      method: 'GET',
+      path: `/api/events/${req.params.id}/comments`,
+      statusCode: 500,
+      error: error
+    });
     res.status(500).json({ error: 'An error occurred while fetching comments.' });
   }
 });
@@ -557,7 +591,13 @@ router.post('/:id/comments', authenticateToken, async (req, res) => {
       profil_img_url: comments[0].profil_img_url
     });
   } catch (error) {
-    console.error('Error creating comment:', error);
+    logger.error('Error creating event comment', {
+      method: 'POST',
+      path: `/api/events/${req.params.id}/comments`,
+      statusCode: 500,
+      error: error,
+      user: req.user ? { id: req.user.id } : null
+    });
     res.status(500).json({ error: 'An error occurred while creating comment.' });
   }
 });
@@ -660,7 +700,13 @@ router.put('/:id/comments/:commentId', authenticateToken, async (req, res) => {
       profil_img_url: updatedComments[0].profil_img_url
     });
   } catch (error) {
-    console.error('Error updating comment:', error);
+    logger.error('Error updating event comment', {
+      method: 'PUT',
+      path: `/api/events/${req.params.id}/comments/${req.params.commentId}`,
+      statusCode: 500,
+      error: error,
+      user: req.user ? { id: req.user.id } : null
+    });
     res.status(500).json({ error: 'An error occurred while updating comment.' });
   }
 });
@@ -719,7 +765,13 @@ router.delete('/:id/comments/:commentId', authenticateToken, async (req, res) =>
     connection.release();
     res.status(204).end();
   } catch (error) {
-    console.error('Error deleting comment:', error);
+    logger.error('Error deleting event comment', {
+      method: 'DELETE',
+      path: `/api/events/${req.params.id}/comments/${req.params.commentId}`,
+      statusCode: 500,
+      error: error,
+      user: req.user ? { id: req.user.id } : null
+    });
     res.status(500).json({ error: 'An error occurred while deleting comment.' });
   }
 });

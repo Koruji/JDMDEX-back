@@ -3,6 +3,7 @@ const multer = require('multer');
 const pool = require('../db/database');
 const { authenticateToken } = require('../middleware/auth');
 const { uploadFile, deleteFile, generateProfilePath } = require('../services/bunny');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
@@ -86,7 +87,13 @@ router.get('/me', authenticateToken, async (req, res) => {
 
     res.json(users[0]);
   } catch (error) {
-    console.error('Error fetching user:', error);
+    logger.error('Error fetching user profile', {
+      method: 'GET',
+      path: '/api/users/me',
+      statusCode: 500,
+      error: error,
+      user: req.user ? { id: req.user.id } : null
+    });
     res.status(500).json({ error: 'An error occurred while fetching user profile.' });
   }
 });
@@ -229,7 +236,13 @@ router.put('/me', authenticateToken, profileUpload.single('profil_img'), async (
 
     res.json(users[0]);
   } catch (error) {
-    console.error('Error updating user:', error);
+    logger.error('Error updating user profile', {
+      method: 'PUT',
+      path: '/api/users/me',
+      statusCode: 500,
+      error: error,
+      user: req.user ? { id: req.user.id } : null
+    });
     res.status(500).json({ error: 'An error occurred while updating user profile.' });
   }
 });
@@ -289,7 +302,12 @@ router.get('/:id', async (req, res) => {
 
     res.json(users[0]);
   } catch (error) {
-    console.error('Error fetching user:', error);
+    logger.error('Error fetching user by ID', {
+      method: 'GET',
+      path: `/api/users/${req.params.id}`,
+      statusCode: 500,
+      error: error
+    });
     res.status(500).json({ error: 'An error occurred while fetching user.' });
   }
 });
