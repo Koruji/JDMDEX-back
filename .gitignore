@@ -3,5 +3,8 @@ uploads/*
 !uploads/.gitkeep
 *.db
 .env
+.env.deploy
+.env.local
 coverage/
 .idea/*
+logs/
