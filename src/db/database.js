@@ -48,6 +48,7 @@ async function initializeDatabase() {
         location VARCHAR(255),
         latitude DECIMAL(10, 8),
         longitude DECIMAL(11, 8),
+        liked BOOLEAN DEFAULT FALSE,
         user_id INT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -94,18 +95,6 @@ async function initializeDatabase() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      )
-    `);
-
-    // Créer la table favorites (selon DATABASE_MIGRATION.md)
-    await connection.query(`
-      CREATE TABLE IF NOT EXISTS favorites (
-        user_id INT NOT NULL,
-        car_id INT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (user_id, car_id),
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (car_id) REFERENCES cars(id) ON DELETE CASCADE
       )
     `);
 
