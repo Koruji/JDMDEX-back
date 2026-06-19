@@ -8,6 +8,7 @@ const authRouter = require('./routes/auth');
 const usersRouter = require('./routes/users');
 const eventsRouter = require('./routes/events');
 const { swaggerUi, specs } = require('./swagger');
+const { requestLogger, errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,16 +22,20 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // Swagger documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
 
+// Middleware pour logger les requêtes (log les erreurs automatiquement)
+app.use(requestLogger);
+
 // Routes
 app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/cars', carsRouter);
 app.use('/api/events', eventsRouter);
 
-// 404 handler for undefined routes
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
+// 404 handler for undefined routes (avec logging)
+app.use(notFoundHandler);
+
+// Error handler global (doit être après toutes les routes)
+app.use(errorHandler);
 
 if (require.main === module) {
   app.listen(PORT, () => {

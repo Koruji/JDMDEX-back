@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
+const logger = require('../utils/logger');
 
 /**
  * Middleware pour vérifier le token JWT
@@ -11,6 +12,11 @@ function authenticateToken(req, res, next) {
   const token = authHeader && authHeader.split(' ')[1]; // Format: "Bearer TOKEN"
 
   if (!token) {
+    logger.error('Authentication failed: No token provided', {
+      method: req.method,
+      path: req.originalUrl,
+      statusCode: 401
+    });
     return res.status(401).json({ 
       error: 'Access denied. No token provided.' 
     });
@@ -22,6 +28,12 @@ function authenticateToken(req, res, next) {
     req.user = decoded;
     next();
   } catch (error) {
+    logger.error('Authentication failed: Invalid or expired token', {
+      method: req.method,
+      path: req.originalUrl,
+      statusCode: 403,
+      error: error
+    });
     return res.status(403).json({ 
       error: 'Invalid or expired token.' 
     });
@@ -35,10 +47,22 @@ function authenticateToken(req, res, next) {
 function checkOwnership(resourceUserId) {
   return (req, res, next) => {
     if (!req.user) {
+      logger.error('Authorization failed: Not authenticated', {
+        method: req.method,
+        path: req.originalUrl,
+        statusCode: 401
+      });
       return res.status(401).json({ error: 'Not authenticated.' });
     }
     
     if (req.user.id !== resourceUserId) {
+      logger.error('Authorization failed: User does not own resource', {
+        method: req.method,
+        path: req.originalUrl,
+        statusCode: 403,
+        user: req.user ? { id: req.user.id } : null,
+        resourceUserId
+      });
       return res.status(403).json({ 
         error: 'Access denied. You do not own this resource.' 
       });
