@@ -1,6 +1,7 @@
 const mysql = require('mysql2/promise');
 const path = require('path');
 require('dotenv').config();
+const logger = require('../utils/logger');
 
 // Configuration de la connexion MariaDB
 const pool = mysql.createPool({
@@ -98,9 +99,13 @@ async function initializeDatabase() {
       )
     `);
 
-    console.log('Database initialized successfully with all tables');
+    logger.info('Database initialized successfully with all tables', {
+      operation: 'initialization'
+    });
   } catch (error) {
-    console.error('Error initializing database:', error);
+    logger.databaseError(error, {
+      operation: 'initialization'
+    });
     throw error;
   } finally {
     if (connection) connection.release();
@@ -108,7 +113,9 @@ async function initializeDatabase() {
 }
 
 // Appeler l'initialisation au démarrage
-initializeDatabase().catch(console.error);
+initializeDatabase().catch((error) => {
+  logger.databaseError(error, { operation: 'startup initialization' });
+});
 
 // Exporter le pool de connexions
 module.exports = pool;

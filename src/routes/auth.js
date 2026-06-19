@@ -4,6 +4,7 @@ const multer = require('multer');
 const pool = require('../db/database');
 const { generateToken } = require('../middleware/auth');
 const { uploadFile, deleteFile, generateProfilePath } = require('../services/bunny');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
@@ -155,7 +156,13 @@ router.post('/register', profileUpload.single('profil_img'), async (req, res) =>
       token
     });
   } catch (error) {
-    console.error('Registration error:', error);
+    logger.error('Registration error', {
+      method: 'POST',
+      path: '/api/auth/register',
+      statusCode: 500,
+      error: error,
+      user: req.body ? { username: req.body.username, email: req.body.email } : null
+    });
     res.status(500).json({
       error: 'An error occurred during registration.'
     });
@@ -255,7 +262,13 @@ router.post('/login', async (req, res) => {
       token
     });
   } catch (error) {
-    console.error('Login error:', error);
+    logger.error('Login error', {
+      method: 'POST',
+      path: '/api/auth/login',
+      statusCode: 500,
+      error: error,
+      user: req.body ? { username: req.body.username } : null
+    });
     res.status(500).json({
       error: 'An error occurred during login.'
     });
@@ -317,7 +330,12 @@ router.get('/me', async (req, res) => {
       user: users[0]
     });
   } catch (error) {
-    console.error('Get me error:', error);
+    logger.error('Get me error', {
+      method: 'GET',
+      path: '/api/auth/me',
+      statusCode: 403,
+      error: error
+    });
     res.status(403).json({
       error: 'Invalid or expired token.'
     });

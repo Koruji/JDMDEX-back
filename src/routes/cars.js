@@ -3,6 +3,7 @@ const multer = require('multer');
 const pool = require('../db/database');
 const { authenticateToken } = require('../middleware/auth');
 const { uploadFile, deleteFile, generateFilePath } = require('../services/bunny');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
@@ -186,7 +187,13 @@ router.get('/', authenticateToken, async (req, res) => {
     connection.release();
     res.json(result);
   } catch (error) {
-    console.error('Error fetching cars:', error);
+    logger.error('Error fetching cars', {
+      method: 'GET',
+      path: '/api/cars',
+      statusCode: 500,
+      error: error,
+      user: req.user ? { id: req.user.id } : null
+    });
     res.status(500).json({ error: 'An error occurred while fetching cars.' });
   }
 });
@@ -241,7 +248,13 @@ router.get('/:id', authenticateToken, async (req, res) => {
     
     res.json(car);
   } catch (error) {
-    console.error('Error fetching car:', error);
+    logger.error('Error fetching car by ID', {
+      method: 'GET',
+      path: `/api/cars/${req.params.id}`,
+      statusCode: 500,
+      error: error,
+      user: req.user ? { id: req.user.id } : null
+    });
     res.status(500).json({ error: 'An error occurred while fetching the car.' });
   }
 });
@@ -375,7 +388,14 @@ router.post('/', authenticateToken, upload.array('photos', 10), async (req, res)
 
     res.status(201).json(car);
   } catch (error) {
-    console.error('Error creating car:', error);
+    logger.error('Error creating car', {
+      method: 'POST',
+      path: '/api/cars',
+      statusCode: 500,
+      error: error,
+      user: req.user ? { id: req.user.id } : null,
+      requestBody: req.body
+    });
     
     // Supprimer les fichiers uploadés sur Bunny en cas d'erreur
     if (uploadedFiles.length > 0) {
@@ -495,7 +515,13 @@ router.put('/:id', authenticateToken, async (req, res) => {
 
     res.json(car);
   } catch (error) {
-    console.error('Error updating car:', error);
+    logger.error('Error updating car', {
+      method: 'PUT',
+      path: `/api/cars/${req.params.id}`,
+      statusCode: 500,
+      error: error,
+      user: req.user ? { id: req.user.id } : null
+    });
     res.status(500).json({ error: 'An error occurred while updating the car.' });
   }
 });
@@ -555,7 +581,13 @@ router.patch('/:id', authenticateToken, async (req, res) => {
 
     res.json(car);
   } catch (error) {
-    console.error('Error patching car:', error);
+    logger.error('Error patching car', {
+      method: 'PATCH',
+      path: `/api/cars/${req.params.id}`,
+      statusCode: 500,
+      error: error,
+      user: req.user ? { id: req.user.id } : null
+    });
     res.status(500).json({ error: 'An error occurred while updating the car.' });
   }
 });
@@ -591,7 +623,13 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     connection.release();
     res.status(204).end();
   } catch (error) {
-    console.error('Error deleting car:', error);
+    logger.error('Error deleting car', {
+      method: 'DELETE',
+      path: `/api/cars/${req.params.id}`,
+      statusCode: 500,
+      error: error,
+      user: req.user ? { id: req.user.id } : null
+    });
     res.status(500).json({ error: 'An error occurred while deleting the car.' });
   }
 });
@@ -687,7 +725,14 @@ router.post('/:id/photos', authenticateToken, upload.array('photos', 10), async 
 
     res.status(201).json(car);
   } catch (error) {
-    console.error('Error adding photos:', error);
+    logger.error('Error adding photos to car', {
+      method: 'POST',
+      path: `/api/cars/${req.params.id}/photos`,
+      statusCode: 500,
+      error: error,
+      user: req.user ? { id: req.user.id } : null,
+      carId: req.params.id
+    });
     
     // Supprimer les fichiers uploadés sur Bunny en cas d'erreur
     if (uploadedFiles.length > 0) {
@@ -779,7 +824,15 @@ router.delete('/:id/photos/:photoId', authenticateToken, async (req, res) => {
     connection.release();
     res.status(204).end();
   } catch (error) {
-    console.error('Error deleting photo:', error);
+    logger.error('Error deleting photo', {
+      method: 'DELETE',
+      path: `/api/cars/${req.params.id}/photos/${req.params.photoId}`,
+      statusCode: 500,
+      error: error,
+      user: req.user ? { id: req.user.id } : null,
+      carId: req.params.id,
+      photoId: req.params.photoId
+    });
     res.status(500).json({ error: 'An error occurred while deleting the photo.' });
   }
 });
