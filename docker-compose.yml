@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   api:
     build:
@@ -73,5 +71,5 @@ networks:
  jdmdex-network:
    driver: bridge
 
-# volumes:
-#   mariadb_data:
+volumes:
+  mariadb_data:
