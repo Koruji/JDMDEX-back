@@ -209,16 +209,16 @@ npm test
 ### Diagramme du Pipeline
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                           STRATÉGIE DE BRANCHING                                │
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           STRATÉGIE DE BRANCHING                        │
 ├───────────────────┬─────────────────┬─────────────────┬─────────────────┐
 │     Branch        │    Lint         │     Test        │     Deploy      │
 ├───────────────────┼─────────────────┼─────────────────┼─────────────────┤
 │    main           │      ✅         │      ✅         │      ✅         │
 │    develop        │      ✅         │      ✅         │      ✅         │
-│    fix/*          │      ✅         │      ✅         │      ❌          │
-│    feature/*      │      ✅         │      ✅         │      ❌          │
-│    ci/*           │      ✅         │      ✅         │      ❌          │
+│    fix/*          │      ✅         │      ✅         │      ❌         │
+│    feature/*      │      ✅         │      ✅         │      ❌         │
+│    ci/*           │      ✅         │      ✅         │      ❌         │
 └───────────────────┴─────────────────┴─────────────────┴─────────────────┘
 
 ┌───────────────────────────────────────────────────────────────────────────────────┐
@@ -244,7 +244,7 @@ npm test
 | **Outil**          | **Justification** | **Alternatives envisagées** | **Pourquoi pas l'alternative ?** |
 |--------------------|-------------------|----------------------------|----------------------------------|
 | **GitHub Actions** | Intégration native avec GitHub, gratuite pour les dépôts publics, facile à configurer | GitLab CI, Jenkins | On maîtrise GitHub, limites plus élevées, pas besoin de maintenir un serveur CI externe |
-| **Node 22 & 24** | Tests sur les deux versions LTS pour garantir la compatibilité | Node 20, 26 | Node 24 pour la prod, tests sur 22 et 24 pour couvrir les versions actives |
+| **Node 22 & 24** | Tests sur les deux versions LTS pour garantir la compatibilité | Node 26 | Node 24 pour la prod, tests sur 22 et 24 pour couvrir les versions actives |
 | **Docker**         | Standard de conteneurisation, portable, reproductible | LXC, Podman | Docker est le plus répandu, mieux intégré avec CI/CD |
 | **Multi-stage Build** | Réduit la taille de l'image finale | Single-stage | Évite d'embarquer les dépendances dev en production |
 | **VPS (SSH)**      | Simple, économique, suffisant pour le prototype | Kubernetes, Serverless | Pas besoin de complexité K8s pour 1 API, coût maîtrisé |
