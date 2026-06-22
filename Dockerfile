@@ -22,14 +22,13 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# Install only production dependencies
+# Copy package files and install only production dependencies
 COPY package*.json ./
 RUN npm ci --only=production
 
 # Copy built files from builder
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/uploads ./uploads
-COPY --from=builder /app/node_modules ./node_modules
 
 # Create logs directory
 RUN mkdir -p logs
