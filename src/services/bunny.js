@@ -3,20 +3,20 @@ const path = require('path');
 require('dotenv').config();
 const logger = require('../utils/logger');
 
-const BUNNY_API_KEY = process.env.BUNNY_API_KEY;
+const { BUNNY_API_KEY } = process.env;
 const BUNNY_STORAGE_ZONE = process.env.BUNNY_STORAGE_ZONE || 'jdmdex';
 const BUNNY_PULL_ZONE = process.env.BUNNY_PULL_ZONE || 'jdmdex-cdn.loocist23.fr';
 
 if (!BUNNY_API_KEY) {
   logger.warn('BUNNY_API_KEY is not set. Files will not be uploaded to Bunny CDN.', {
-    service: 'BunnyCDN'
+    service: 'BunnyCDN',
   });
 }
 
 const bunnyApi = axios.create({
   baseURL: `https://storage.bunnycdn.com/${BUNNY_STORAGE_ZONE}/`,
   headers: {
-    'AccessKey': BUNNY_API_KEY,
+    AccessKey: BUNNY_API_KEY,
   },
 });
 
@@ -46,7 +46,7 @@ async function uploadFile(fileBuffer, fileName) {
     logger.externalApiError('BunnyCDN', error, {
       method: 'PUT',
       url: fileName,
-      requestData: { fileName, fileSize: fileBuffer?.length }
+      requestData: { fileName, fileSize: fileBuffer?.length },
     });
     throw error;
   }
@@ -62,7 +62,7 @@ async function deleteFile(fileName) {
     if (!BUNNY_API_KEY) {
       logger.warn('BUNNY_API_KEY not configured, cannot delete from Bunny CDN', {
         service: 'BunnyCDN',
-        fileName
+        fileName,
       });
       return false;
     }
@@ -72,7 +72,7 @@ async function deleteFile(fileName) {
   } catch (error) {
     logger.externalApiError('BunnyCDN', error, {
       method: 'DELETE',
-      url: fileName
+      url: fileName,
     });
     return false;
   }

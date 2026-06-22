@@ -12,11 +12,12 @@ const profileUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedExts = /\.(jpe?g|png|webp|gif|heic|heif)$/i;
-    const allowedMime = file.mimetype.startsWith('image/') || file.mimetype === 'application/octet-stream';
+    const allowedMime = file.mimetype.startsWith('image/')
+      || file.mimetype === 'application/octet-stream';
     if (!allowedMime && !allowedExts.test(file.originalname)) {
       return cb(new Error('Only images are allowed'));
     }
-    cb(null, true);
+    return cb(null, true);
   },
 });
 
@@ -73,12 +74,13 @@ const profileUpload = multer({
 router.get('/me', authenticateToken, async (req, res) => {
   try {
     const connection = await pool.getConnection();
-    
+
     const [users] = await connection.query(
-      'SELECT id, username, email, social_media, profil_img_url, created_at, updated_at FROM users WHERE id = ?',
-      [req.user.id]
+      `SELECT id, username, email, social_media, profil_img_url, created_at, updated_at
+       FROM users WHERE id = ?`,
+      [req.user.id],
     );
-    
+
     connection.release();
 
     if (users.length === 0) {
@@ -91,8 +93,8 @@ router.get('/me', authenticateToken, async (req, res) => {
       method: 'GET',
       path: '/api/users/me',
       statusCode: 500,
-      error: error,
-      user: req.user ? { id: req.user.id } : null
+      error,
+      user: req.user ? { id: req.user.id } : null,
     });
     res.status(500).json({ error: 'An error occurred while fetching user profile.' });
   }
@@ -158,94 +160,103 @@ router.get('/me', authenticateToken, async (req, res) => {
  *       404:
  *         description: User not found
  */
-router.put('/me', authenticateToken, profileUpload.single('profil_img'), async (req, res) => {
-  const { username, email, social_media } = req.body;
+router.put(
+  '/me',
+  authenticateToken,
+  profileUpload.single('profil_img'),
+  async (req, res) => {
+    const { username, email, social_media } = req.body;
 
-  if (!username && !email && !req.file) {
-    return res.status(400).json({ error: 'At least username, email, or profil_img must be provided.' });
-  }
-
-  try {
-    const connection = await pool.getConnection();
-    
-    // Vérifier si le username ou email existe déjà (si fourni)
-    if (username) {
-      const [existing] = await connection.query(
-        'SELECT id FROM users WHERE username = ? AND id != ?',
-        [username, req.user.id]
-      );
-      if (existing.length > 0) {
-        return res.status(409).json({ error: 'Username already exists.' });
-      }
+    if (!username && !email && !req.file) {
+      return res.status(400).json({
+        error: 'At least username, email, or profil_img must be provided.',
+      });
     }
 
-    if (email) {
-      const [existing] = await connection.query(
-        'SELECT id FROM users WHERE email = ? AND id != ?',
-        [email, req.user.id]
-      );
-      if (existing.length > 0) {
-        return res.status(409).json({ error: 'Email already exists.' });
-      }
-    }
+    try {
+      const connection = await pool.getConnection();
 
-    // Gérer l'upload de l'image de profil
-    let profilImgUrl = null;
-    let oldProfilImgPath = null;
-    
-    if (req.file) {
+      // Vérifier si le username ou email existe déjà (si fourni)
+      if (username) {
+        const [existing] = await connection.query(
+          'SELECT id FROM users WHERE username = ? AND id != ?',
+          [username, req.user.id],
+        );
+        if (existing.length > 0) {
+          return res.status(409).json({ error: 'Username already exists.' });
+        }
+      }
+
+      if (email) {
+        const [existing] = await connection.query(
+          'SELECT id FROM users WHERE email = ? AND id != ?',
+          [email, req.user.id],
+        );
+        if (existing.length > 0) {
+          return res.status(409).json({ error: 'Email already exists.' });
+        }
+      }
+
+      // Gérer l'upload de l'image de profil
+      let profilImgUrl = null;
+      let oldProfilImgPath = null;
+
+      if (req.file) {
       // Récupérer l'ancienne image de profil pour la supprimer
-      const [oldUser] = await connection.query(
-        'SELECT profil_img_url FROM users WHERE id = ?',
-        [req.user.id]
-      );
-      
-      if (oldUser[0] && oldUser[0].profil_img_url) {
-        oldProfilImgPath = oldUser[0].profil_img_url.replace(`https://${process.env.BUNNY_PULL_ZONE || 'jdmdex-cdn.loocist23.fr'}/`, '');
-      }
-      
-      // Upload de la nouvelle image
-      const filePath = generateProfilePath(req.user.id, req.file.originalname);
-      profilImgUrl = await uploadFile(req.file.buffer, filePath);
-      
-      // Supprimer l'ancienne image après upload réussi
-      if (oldProfilImgPath) {
-        await deleteFile(oldProfilImgPath).catch(() => {});
-      }
-    }
+        const [oldUser] = await connection.query(
+          'SELECT profil_img_url FROM users WHERE id = ?',
+          [req.user.id],
+        );
 
-    // Mettre à jour l'utilisateur
-    await connection.query(
-      `UPDATE users SET
+        if (oldUser[0] && oldUser[0].profil_img_url) {
+          const cdnUrl = process.env.BUNNY_PULL_ZONE || 'jdmdex-cdn.loocist23.fr';
+          oldProfilImgPath = oldUser[0].profil_img_url.replace(`https://${cdnUrl}/`, '');
+        }
+
+        // Upload de la nouvelle image
+        const filePath = generateProfilePath(req.user.id, req.file.originalname);
+        profilImgUrl = await uploadFile(req.file.buffer, filePath);
+
+        // Supprimer l'ancienne image après upload réussi
+        if (oldProfilImgPath) {
+          await deleteFile(oldProfilImgPath).catch(() => {});
+        }
+      }
+
+      // Mettre à jour l'utilisateur
+      await connection.query(
+        `UPDATE users SET
         username = COALESCE(?, username),
         email = COALESCE(?, email),
         social_media = COALESCE(?, social_media),
         profil_img_url = COALESCE(?, profil_img_url),
         updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
-      [username, email, social_media, profilImgUrl, req.user.id]
-    );
+        [username, email, social_media, profilImgUrl, req.user.id],
+      );
 
-    // Récupérer l'utilisateur mis à jour
-    const [users] = await connection.query(
-      'SELECT id, username, email, social_media, profil_img_url, created_at, updated_at FROM users WHERE id = ?',
-      [req.user.id]
-    );
-    
-    connection.release();
+      // Récupérer l'utilisateur mis à jour
+      const [users] = await connection.query(
+        `SELECT id, username, email, social_media, profil_img_url,
+          created_at, updated_at FROM users WHERE id = ?`,
+        [req.user.id],
+      );
 
-    res.json(users[0]);
-  } catch (error) {
-    logger.error('Error updating user profile', {
-      method: 'PUT',
-      path: '/api/users/me',
-      statusCode: 500,
-      error: error,
-      user: req.user ? { id: req.user.id } : null
-    });
-    res.status(500).json({ error: 'An error occurred while updating user profile.' });
-  }
-});
+      connection.release();
+
+      res.json(users[0]);
+    } catch (error) {
+      logger.error('Error updating user profile', {
+        method: 'PUT',
+        path: '/api/users/me',
+        statusCode: 500,
+        error,
+        user: req.user ? { id: req.user.id } : null,
+      });
+      res.status(500).json({ error: 'An error occurred while updating user profile.' });
+    }
+  },
+);
 
 /**
  * @swagger
@@ -287,13 +298,13 @@ router.put('/me', authenticateToken, profileUpload.single('profil_img'), async (
 router.get('/:id', async (req, res) => {
   try {
     const connection = await pool.getConnection();
-    
+
     // Récupérer uniquement les infos publiques (sans email)
     const [users] = await connection.query(
       'SELECT id, username, social_media, profil_img_url, created_at FROM users WHERE id = ?',
-      [req.params.id]
+      [req.params.id],
     );
-    
+
     connection.release();
 
     if (users.length === 0) {
@@ -306,7 +317,7 @@ router.get('/:id', async (req, res) => {
       method: 'GET',
       path: `/api/users/${req.params.id}`,
       statusCode: 500,
-      error: error
+      error,
     });
     res.status(500).json({ error: 'An error occurred while fetching user.' });
   }

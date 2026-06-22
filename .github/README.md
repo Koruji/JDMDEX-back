@@ -6,17 +6,32 @@ This repository uses GitHub Actions for continuous integration and deployment.
 
 The CI/CD workflow (`.github/workflows/ci-cd.yml`) performs the following:
 
-1. **Lint & Test Job**
-   - Runs on every push and pull request
-   - Checks JavaScript syntax
-   - Runs tests with Jest
+### Branch Strategy
+| Branch Pattern | Lint | Test | Deploy |
+|----------------|------|------|--------|
+| `main` | ✅ | ✅ | ✅ |
+| `develop` | ✅ | ✅ | ✅ |
+| `fix/*`, `feature/*`, `ci/*` | ✅ | ✅ | ❌ |
 
-2. **Deploy Job**
-   - Runs only on push to `main`, `develop`, or `features/**` branches
-   - Requires the Lint & Test job to pass first
+### Jobs
+1. **Lint Job**
+   - Runs on every push and pull request
+   - Uses ESLint to check code quality
+   - Must pass for other jobs to run
+
+2. **Test & Coverage Job**
+   - Runs after Lint passes
+   - Executes tests with Jest and generates coverage report
+   - Uploads coverage report as artifact (available for 7 days)
+   - Must pass for deploy job to run
+
+3. **Deploy Job**
+   - Runs **only on `main` and `develop` branches**
+   - Requires Lint & Test jobs to pass first
    - Creates `.env` file from GitHub Secrets
-   - Deploys to VPS via SSH
-   - Restarts the PM2 service
+   - Deploys to VPS via SSH using `appleboy/ssh-action`
+   - Executes `docker-compose down && up -d` for zero-downtime deployment
+   - Verifies deployment with `docker-compose ps`
 
 ## Setup Instructions
 

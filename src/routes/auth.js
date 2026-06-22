@@ -1,9 +1,10 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const pool = require('../db/database');
 const { generateToken } = require('../middleware/auth');
-const { uploadFile, deleteFile, generateProfilePath } = require('../services/bunny');
+const { uploadFile, generateProfilePath } = require('../services/bunny');
 const logger = require('../utils/logger');
 
 const router = express.Router();
@@ -13,11 +14,12 @@ const profileUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedExts = /\.(jpe?g|png|webp|gif|heic|heif)$/i;
-    const allowedMime = file.mimetype.startsWith('image/') || file.mimetype === 'application/octet-stream';
+    const allowedMime = file.mimetype.startsWith('image/')
+      || file.mimetype === 'application/octet-stream';
     if (!allowedMime && !allowedExts.test(file.originalname)) {
       return cb(new Error('Only images are allowed'));
     }
-    cb(null, true);
+    return cb(null, true);
   },
 });
 
@@ -81,36 +83,36 @@ router.post('/register', profileUpload.single('profil_img'), async (req, res) =>
   // Validation des champs obligatoires
   if (!username || !email || !password) {
     return res.status(400).json({
-      error: 'Username, email, and password are required.'
+      error: 'Username, email, and password are required.',
     });
   }
 
   // Validation du format email
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({
-      error: 'Invalid email format.'
+      error: 'Invalid email format.',
     });
   }
 
   // Validation de la longueur du mot de passe
   if (password.length < 6) {
     return res.status(400).json({
-      error: 'Password must be at least 6 characters long.'
+      error: 'Password must be at least 6 characters long.',
     });
   }
 
   try {
     const connection = await pool.getConnection();
-    
+
     // Vérifier si l'utilisateur existe déjà
     const [existingUsers] = await connection.query(
       'SELECT id FROM users WHERE username = ? OR email = ?',
-      [username, email]
+      [username, email],
     );
-    
+
     if (existingUsers.length > 0) {
       return res.status(409).json({
-        error: 'Username or email already exists.'
+        error: 'Username or email already exists.',
       });
     }
 
@@ -121,7 +123,7 @@ router.post('/register', profileUpload.single('profil_img'), async (req, res) =>
     // Créer l'utilisateur
     const [result] = await connection.query(
       'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',
-      [username, email, passwordHash]
+      [username, email, passwordHash],
     );
 
     const userId = result.insertId;
@@ -132,18 +134,18 @@ router.post('/register', profileUpload.single('profil_img'), async (req, res) =>
       const filePath = generateProfilePath(userId, req.file.originalname);
       const url = await uploadFile(req.file.buffer, filePath);
       profilImgUrl = url;
-      
+
       // Mettre à jour l'utilisateur avec l'URL de l'image de profil
       await connection.query(
         'UPDATE users SET profil_img_url = ? WHERE id = ?',
-        [profilImgUrl, userId]
+        [profilImgUrl, userId],
       );
     }
 
     // Récupérer l'utilisateur créé
     const [user] = await connection.query(
       'SELECT id, username, email, profil_img_url FROM users WHERE id = ?',
-      [userId]
+      [userId],
     );
 
     // Générer un token JWT
@@ -153,18 +155,18 @@ router.post('/register', profileUpload.single('profil_img'), async (req, res) =>
 
     res.status(201).json({
       user: user[0],
-      token
+      token,
     });
   } catch (error) {
     logger.error('Registration error', {
       method: 'POST',
       path: '/api/auth/register',
       statusCode: 500,
-      error: error,
-      user: req.body ? { username: req.body.username, email: req.body.email } : null
+      error,
+      user: req.body ? { username: req.body.username, email: req.body.email } : null,
     });
     res.status(500).json({
-      error: 'An error occurred during registration.'
+      error: 'An error occurred during registration.',
     });
   }
 });
@@ -214,22 +216,22 @@ router.post('/login', async (req, res) => {
   // Validation des champs obligatoires
   if (!username || !password) {
     return res.status(400).json({
-      error: 'Username and password are required.'
+      error: 'Username and password are required.',
     });
   }
 
   try {
     const connection = await pool.getConnection();
-    
+
     // Trouver l'utilisateur par username ou email
     const [users] = await connection.query(
       'SELECT id, username, email, password_hash FROM users WHERE username = ? OR email = ?',
-      [username, username]
+      [username, username],
     );
 
     if (users.length === 0) {
       return res.status(401).json({
-        error: 'Invalid credentials.'
+        error: 'Invalid credentials.',
       });
     }
 
@@ -237,10 +239,10 @@ router.post('/login', async (req, res) => {
 
     // Vérifier le mot de passe
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
-    
+
     if (!passwordMatch) {
       return res.status(401).json({
-        error: 'Invalid credentials.'
+        error: 'Invalid credentials.',
       });
     }
 
@@ -248,7 +250,7 @@ router.post('/login', async (req, res) => {
     const token = generateToken({
       id: user.id,
       username: user.username,
-      email: user.email
+      email: user.email,
     });
 
     connection.release();
@@ -257,20 +259,20 @@ router.post('/login', async (req, res) => {
       user: {
         id: user.id,
         username: user.username,
-        email: user.email
+        email: user.email,
       },
-      token
+      token,
     });
   } catch (error) {
     logger.error('Login error', {
       method: 'POST',
       path: '/api/auth/login',
       statusCode: 500,
-      error: error,
-      user: req.body ? { username: req.body.username } : null
+      error,
+      user: req.body ? { username: req.body.username } : null,
     });
     res.status(500).json({
-      error: 'An error occurred during login.'
+      error: 'An error occurred during login.',
     });
   }
 });
@@ -299,45 +301,44 @@ router.post('/login', async (req, res) => {
  *         description: Invalid or expired token
  */
 router.get('/me', async (req, res) => {
-  const authHeader = req.headers['authorization'];
+  const authHeader = req.headers.authorization;
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
     return res.status(401).json({
-      error: 'No token provided.'
+      error: 'No token provided.',
     });
   }
 
   try {
-    const jwt = require('jsonwebtoken');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
+
     const connection = await pool.getConnection();
     const [users] = await connection.query(
       'SELECT id, username, email FROM users WHERE id = ?',
-      [decoded.id]
+      [decoded.id],
     );
-    
+
     connection.release();
 
     if (users.length === 0) {
       return res.status(404).json({
-        error: 'User not found.'
+        error: 'User not found.',
       });
     }
 
     res.json({
-      user: users[0]
+      user: users[0],
     });
   } catch (error) {
     logger.error('Get me error', {
       method: 'GET',
       path: '/api/auth/me',
       statusCode: 403,
-      error: error
+      error,
     });
     res.status(403).json({
-      error: 'Invalid or expired token.'
+      error: 'Invalid or expired token.',
     });
   }
 });
