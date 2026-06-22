@@ -204,7 +204,7 @@ Les tests peuvent être lancés avec :
 npm test
 ```
 
-## 🏗️ Architecture CI/CD
+## Architecture CI/CD
 
 ### Diagramme du Pipeline
 
@@ -237,7 +237,7 @@ npm test
 └───────────────────┘    └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
 
-## 🔍 Analyse CI/CD
+## Analyse CI/CD
 
 ### Pourquoi ces outils ont été choisis ?
 
@@ -251,7 +251,7 @@ npm test
 | **Jest**           | Framework de test JavaScript populaire, bien intégré | Mocha, Vitest | Déjà utilisé dans le projet, bonne documentation |
 | **ESLint**         | Standard de linting JavaScript | Prettier (seul) | ESLint fait du linting ET du formatting, plus complet |
 
-### Outils non retenus (pour l'instant) 🚧
+### Outils non retenus (pour l'instant)
 
 | **Outil**          | **Pourquoi pas maintenant ?** | **Quand l'ajouter ?** |
 |--------------------|-------------------------------|------------------------|
@@ -273,7 +273,7 @@ npm test
 ### Mesure de Couverture
 Actuellement activée avec Jest (`--coverage`). Les rapports sont générés dans le dossier `coverage/` et sont téléchargeables via les artifacts GitHub Actions. **Objectif futur** : Intégrer un seuil minimal (ex: 80%) pour bloquer le merge si la couverture baisse.
 
-## 🚀 GitHub Actions CI/CD
+## GitHub Actions CI/CD
 
 Le pipeline CI/CD (`.github/workflows/ci-cd.yml`) utilise **Node.js 22 et 24** pour les tests et **Node.js 24** pour la production.
 
@@ -304,7 +304,7 @@ Le pipeline CI/CD (`.github/workflows/ci-cd.yml`) utilise **Node.js 22 et 24** p
    - Exécute `docker-compose down && up -d` pour un déploiement sans interruption
    - Vérifie le déploiement avec `docker-compose ps`
 
-### 📋 Configuration Requise
+### Configuration Requise
 
 #### 1. Configurer les Secrets GitHub
 Aller dans **Settings > Secrets > Actions > New repository secret** et ajouter :
@@ -363,7 +363,7 @@ docker-compose up -d
 3. Push sur `develop` → Lint + Test + Déploiement
 4. Vérifie les logs dans l'onglet **Actions** de GitHub
 
-### 🐛 Dépannage
+### Dépannage
 
 #### Problèmes courants
 
@@ -400,7 +400,7 @@ docker-compose logs -f
 docker-compose ps
 ```
 
-### ⚙️ Personnalisation
+### Personnalisation
 
 #### Changer les versions de Node.js
 Modifie la matrice dans le fichier workflow :
@@ -419,7 +419,7 @@ Le job de build/déploiement utilise Node.js 24 pour la production.
 #### Déployer sur plusieurs serveurs
 Tu peux étendre le workflow pour déployer sur plusieurs serveurs en ajoutant des jobs de déploiement supplémentaires avec différents secrets.
 
-### 🔒 Notes de Sécurité
+### Notes de Sécurité
 - Ne commit **jamais** ton fichier `.env` dans git
 - Utilise toujours les GitHub Secrets pour les informations sensibles
 - Fait une rotation périodique de tes clés SSH
