@@ -244,6 +244,7 @@ npm test
 | **Outil**          | **Justification** | **Alternatives envisagées** | **Pourquoi pas l'alternative ?** |
 |--------------------|-------------------|----------------------------|----------------------------------|
 | **GitHub Actions** | Intégration native avec GitHub, gratuite pour les dépôts publics, facile à configurer | GitLab CI, Jenkins | On maîtrise GitHub, limites plus élevées, pas besoin de maintenir un serveur CI externe |
+| **Node 22 & 24** | Tests sur les deux versions LTS pour garantir la compatibilité | Node 20, 26 | Node 24 pour la prod, tests sur 22 et 24 pour couvrir les versions actives |
 | **Docker**         | Standard de conteneurisation, portable, reproductible | LXC, Podman | Docker est le plus répandu, mieux intégré avec CI/CD |
 | **Multi-stage Build** | Réduit la taille de l'image finale | Single-stage | Évite d'embarquer les dépendances dev en production |
 | **VPS (SSH)**      | Simple, économique, suffisant pour le prototype | Kubernetes, Serverless | Pas besoin de complexité K8s pour 1 API, coût maîtrisé |
@@ -271,6 +272,159 @@ npm test
 
 ### Mesure de Couverture
 Actuellement activée avec Jest (`--coverage`). Les rapports sont générés dans le dossier `coverage/` et sont téléchargeables via les artifacts GitHub Actions. **Objectif futur** : Intégrer un seuil minimal (ex: 80%) pour bloquer le merge si la couverture baisse.
+
+## 🚀 GitHub Actions CI/CD
+
+Le pipeline CI/CD (`.github/workflows/ci-cd.yml`) utilise **Node.js 22 et 24** pour les tests et **Node.js 24** pour la production.
+
+### Description du Workflow
+
+#### Stratégie de Branching
+| Branche | Lint | Test | Déploiement |
+|---------|------|------|-------------|
+| `main` | ✅ | ✅ | ✅ |
+| `develop` | ✅ | ✅ | ✅ |
+| `fix/*`, `feature/*`, `ci/*` | ✅ | ✅ | ❌ |
+
+#### Jobs
+1. **Lint** - Exécuté en parallèle sur Node 22 et 24
+   - Vérifie la qualité du code avec ESLint
+   - Doit réussir pour lancer les tests
+
+2. **Test & Couverture** - Exécuté en parallèle sur Node 22 et 24
+   - Exécute les tests avec Jest et génère le rapport de couverture
+   - Télécharge le rapport comme artifact (disponible 7 jours)
+   - Doit réussir pour lancer le déploiement
+
+3. **Build Docker & Déploiement** - Node 24 uniquement
+   - **Seulement sur `main` et `develop`**
+   - Requiert que Lint et Test réussissent
+   - Crée le fichier `.env` depuis les GitHub Secrets
+   - Déploie sur le VPS via SSH avec `appleboy/ssh-action`
+   - Exécute `docker-compose down && up -d` pour un déploiement sans interruption
+   - Vérifie le déploiement avec `docker-compose ps`
+
+### 📋 Configuration Requise
+
+#### 1. Configurer les Secrets GitHub
+Aller dans **Settings > Secrets > Actions > New repository secret** et ajouter :
+
+**Secrets applicatifs (depuis .env)** :
+```
+PORT, NODE_ENV, MYSQL_HOST, MYSQL_PORT, MYSQL_DATABASE,
+MYSQL_USER, MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD, JWT_SECRET,
+JWT_EXPIRES_IN, BUNNY_API_KEY, BUNNY_STORAGE_ZONE, BUNNY_PULL_ZONE,
+MAX_FILE_SIZE, UPLOAD_DIR, LOG_LEVEL
+```
+
+**Secrets de connexion VPS** :
+```
+VPS_HOST              # IP ou domaine du VPS (ex: 123.123.123.123)
+VPS_USERNAME          # Utilisateur SSH (ex: root ou ton utilisateur)
+VPS_SSH_KEY          # Clé SSH privée (contenu complet y compris les en-têtes)
+VPS_PORT             # Port SSH (défaut: 22)
+```
+
+**Pour récupérer ta clé SSH :**
+```bash
+cat ~/.ssh/id_rsa
+```
+Copier tout le contenu y compris `-----BEGIN PRIVATE KEY-----` et `-----END PRIVATE KEY-----`
+
+#### 2. Préparer ton VPS
+Ton VPS doit avoir :
+- **Node.js 24** (requis pour la production)
+- npm ou yarn
+- Docker et Docker Compose
+- Git
+- Accès SSH
+
+#### 3. Setup initial sur le VPS
+```bash
+# Cloner le dépôt
+cd ~
+git clone https://github.com/loocist/JDMDEX-back.git
+cd JDMDEX-back
+
+# Installer les dépendances
+npm install --production
+
+# Créer le .env
+cp .env.example .env
+nano .env  # Éditer avec tes valeurs réelles
+
+# Démarrer avec Docker Compose
+docker-compose up -d
+```
+
+#### 4. Vérifier que tout fonctionne
+1. Fais un petit changement de code
+2. Push sur une branche `feature/*` → Lint + Test sur Node 22 et 24
+3. Push sur `develop` → Lint + Test + Déploiement
+4. Vérifie les logs dans l'onglet **Actions** de GitHub
+
+### 🐛 Dépannage
+
+#### Problèmes courants
+
+1. **Échec de connexion SSH**
+   - Vérifie que VPS_HOST, VPS_USERNAME, VPS_SSH_KEY sont corrects
+   - Teste SSH manuellement : `ssh -i ~/.ssh/id_rsa user@host`
+   - Assure-toi que la clé SSH est dans `~/.ssh/authorized_keys` sur le VPS
+
+2. **Permission refusée**
+   - Vérifie que l'utilisateur SSH a les droits d'écriture sur le répertoire de déploiement
+   - Vérifie les permissions : `ls -la /home/username/JDMDEX-back`
+
+3. **Variables d'environnement manquantes**
+   - Vérifie que tous les secrets sont configurés dans GitHub
+   - Consulte les logs du workflow pour voir quelle variable manque
+
+4. **Version Node.js incompatible**
+   - Le workflow utilise Node 22 et 24 pour les tests, Node 24 pour la production
+   - Assure-toi que ton VPS a Node.js 24 : `node -v`
+
+#### Visualisation des logs
+
+**Logs GitHub Actions :**
+- Va dans l'onglet **Actions** de ton dépôt GitHub
+- Clique sur l'exécution du workflow
+- Développe chaque étape pour voir les logs détaillés
+
+**Logs VPS :**
+```bash
+# Logs Docker
+docker-compose logs -f
+
+# Status des conteneurs
+docker-compose ps
+```
+
+### ⚙️ Personnalisation
+
+#### Changer les versions de Node.js
+Modifie la matrice dans le fichier workflow :
+```yaml
+strategy:
+  matrix:
+    node-version: ['22', '24']  # Ajoute/supprime des versions selon tes besoins
+```
+Le job de build/déploiement utilise Node.js 24 pour la production.
+
+#### Ajouter de nouvelles variables d'environnement
+1. Ajoute la variable dans `.env` et `.env.example`
+2. Ajoute-la comme GitHub Secret avec le même nom
+3. Ajoute-la dans l'étape de création du `.env` du workflow
+
+#### Déployer sur plusieurs serveurs
+Tu peux étendre le workflow pour déployer sur plusieurs serveurs en ajoutant des jobs de déploiement supplémentaires avec différents secrets.
+
+### 🔒 Notes de Sécurité
+- Ne commit **jamais** ton fichier `.env` dans git
+- Utilise toujours les GitHub Secrets pour les informations sensibles
+- Fait une rotation périodique de tes clés SSH
+- Utilise des clés de déploiement avec des permissions limitées quand c'est possible
+- Envisage d'utiliser les GitHub Environments pour différentes cibles (staging, production)
 
 ## Licence
 
