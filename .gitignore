@@ -8,3 +8,4 @@ uploads/*
 coverage/
 .idea/*
 logs/
+/.idea/

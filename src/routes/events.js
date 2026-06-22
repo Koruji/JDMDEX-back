@@ -36,7 +36,7 @@ const router = express.Router();
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const connection = await pool.getConnection();
-    
+
     const [events] = await connection.query(
       `SELECT e.id, e.name, e.date_start, e.date_end, e.location, e.type, e.notes,
               u.id as owner_id, u.username, u.profil_img_url,
@@ -48,14 +48,14 @@ router.get('/', authenticateToken, async (req, res) => {
        WHERE e.user_id = ?
        GROUP BY e.id
        ORDER BY e.date_start ASC`,
-      [req.user.id]
+      [req.user.id],
     );
-    
-    const result = events.map(event => ({
+
+    const result = events.map((event) => ({
       ...event,
-      comments_count: event.comments_count || 0
+      comments_count: event.comments_count || 0,
     }));
-    
+
     connection.release();
     res.json(result);
   } catch (error) {
@@ -63,8 +63,8 @@ router.get('/', authenticateToken, async (req, res) => {
       method: 'GET',
       path: '/api/events',
       statusCode: 500,
-      error: error,
-      user: req.user ? { id: req.user.id } : null
+      error,
+      user: req.user ? { id: req.user.id } : null,
     });
     res.status(500).json({ error: 'An error occurred while fetching events.' });
   }
@@ -122,31 +122,33 @@ router.get('/', authenticateToken, async (req, res) => {
  *         description: Not authenticated
  */
 router.post('/', authenticateToken, async (req, res) => {
-  const { name, dateStart, dateEnd, location, type, notes } = req.body;
+  const {
+    name, dateStart, dateEnd, location, type, notes,
+  } = req.body;
 
   if (!name || !dateStart || !dateEnd || !type) {
-    return res.status(400).json({ 
-      error: 'name, dateStart, dateEnd, and type are required.' 
+    return res.status(400).json({
+      error: 'name, dateStart, dateEnd, and type are required.',
     });
   }
 
   if (!['rasso', 'expo', 'autre'].includes(type)) {
-    return res.status(400).json({ 
-      error: 'type must be one of: rasso, expo, autre' 
+    return res.status(400).json({
+      error: 'type must be one of: rasso, expo, autre',
     });
   }
 
   try {
     const connection = await pool.getConnection();
-    
+
     const eventId = uuidv4();
-    
+
     await connection.query(
       `INSERT INTO events 
        (id, name, date_start, date_end, location, type, notes, user_id)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [eventId, name, new Date(dateStart), new Date(dateEnd), 
-       location, type, notes, req.user.id]
+      [eventId, name, new Date(dateStart), new Date(dateEnd),
+        location, type, notes, req.user.id],
     );
 
     // Récupérer l'événement créé
@@ -157,16 +159,16 @@ router.post('/', authenticateToken, async (req, res) => {
        FROM events e
        LEFT JOIN users u ON e.user_id = u.id
        WHERE e.id = ?`,
-      [eventId]
+      [eventId],
     );
-    
+
     connection.release();
 
     // Formater les dates pour la réponse
     const event = {
       ...events[0],
       dateStart: events[0].dateStart,
-      dateEnd: events[0].dateEnd
+      dateEnd: events[0].dateEnd,
     };
 
     res.status(201).json(event);
@@ -175,8 +177,8 @@ router.post('/', authenticateToken, async (req, res) => {
       method: 'POST',
       path: '/api/events',
       statusCode: 500,
-      error: error,
-      user: req.user ? { id: req.user.id } : null
+      error,
+      user: req.user ? { id: req.user.id } : null,
     });
     res.status(500).json({ error: 'An error occurred while creating event.' });
   }
@@ -221,17 +223,18 @@ router.post('/', authenticateToken, async (req, res) => {
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const connection = await pool.getConnection();
-    
+
     const [events] = await connection.query(
-      `SELECT e.id, e.name, e.date_start as dateStart, e.date_end as dateEnd, 
+      `SELECT e.id, e.name, e.date_start as dateStart, e.date_end as dateEnd,
               e.location, e.type, e.notes, e.user_id, e.created_at, e.updated_at,
-              u.id as owner_id, u.username as owner_username, u.profil_img_url as owner_profil_img_url
+              u.id as owner_id, u.username as owner_username,
+              u.profil_img_url as owner_profil_img_url
        FROM events e
        LEFT JOIN users u ON e.user_id = u.id
        WHERE e.id = ?`,
-      [req.params.id]
+      [req.params.id],
     );
-    
+
     if (events.length === 0) {
       return res.status(404).json({ error: 'Event not found.' });
     }
@@ -249,22 +252,22 @@ router.get('/:id', authenticateToken, async (req, res) => {
        LEFT JOIN users u ON ec.user_id = u.id
        WHERE ec.event_id = ?
        ORDER BY ec.created_at ASC`,
-      [req.params.id]
+      [req.params.id],
     );
-    
+
     const event = {
       ...events[0],
-      comments: comments.map(c => ({
+      comments: comments.map((c) => ({
         id: c.id,
         event_id: c.event_id,
         user_id: c.user_id,
         text: c.text,
         created_at: c.created_at,
         username: c.username,
-        profil_img_url: c.profil_img_url
-      }))
+        profil_img_url: c.profil_img_url,
+      })),
     };
-    
+
     connection.release();
     res.json(event);
   } catch (error) {
@@ -272,8 +275,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
       method: 'GET',
       path: `/api/events/${req.params.id}`,
       statusCode: 500,
-      error: error,
-      user: req.user ? { id: req.user.id } : null
+      error,
+      user: req.user ? { id: req.user.id } : null,
     });
     res.status(500).json({ error: 'An error occurred while fetching event.' });
   }
@@ -331,21 +334,23 @@ router.get('/:id', authenticateToken, async (req, res) => {
  *         description: Event not found
  */
 router.put('/:id', authenticateToken, async (req, res) => {
-  const { name, dateStart, dateEnd, location, type, notes } = req.body;
+  const {
+    name, dateStart, dateEnd, location, type, notes,
+  } = req.body;
 
   try {
     const connection = await pool.getConnection();
-    
+
     // Vérifier que l'événement existe et appartient à l'utilisateur
     const [events] = await connection.query(
       'SELECT id, user_id FROM events WHERE id = ?',
-      [req.params.id]
+      [req.params.id],
     );
-    
+
     if (events.length === 0) {
       return res.status(404).json({ error: 'Event not found.' });
     }
-    
+
     if (events[0].user_id !== req.user.id) {
       return res.status(403).json({ error: 'Access denied. You do not own this event.' });
     }
@@ -361,8 +366,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
         notes = COALESCE(?, notes),
         updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
-      [name, dateStart ? new Date(dateStart) : null, 
-       dateEnd ? new Date(dateEnd) : null, location, type, notes, req.params.id]
+      [name, dateStart ? new Date(dateStart) : null,
+        dateEnd ? new Date(dateEnd) : null, location, type, notes, req.params.id],
     );
 
     // Récupérer l'événement mis à jour
@@ -371,9 +376,9 @@ router.put('/:id', authenticateToken, async (req, res) => {
               e.location, e.type, e.notes, e.user_id, e.created_at, e.updated_at
        FROM events e
        WHERE e.id = ?`,
-      [req.params.id]
+      [req.params.id],
     );
-    
+
     connection.release();
     res.json(updatedEvents[0]);
   } catch (error) {
@@ -381,8 +386,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
       method: 'PUT',
       path: `/api/events/${req.params.id}`,
       statusCode: 500,
-      error: error,
-      user: req.user ? { id: req.user.id } : null
+      error,
+      user: req.user ? { id: req.user.id } : null,
     });
     res.status(500).json({ error: 'An error occurred while updating event.' });
   }
@@ -416,24 +421,24 @@ router.put('/:id', authenticateToken, async (req, res) => {
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     const connection = await pool.getConnection();
-    
+
     // Vérifier que l'événement existe et appartient à l'utilisateur
     const [events] = await connection.query(
       'SELECT id, user_id FROM events WHERE id = ?',
-      [req.params.id]
+      [req.params.id],
     );
-    
+
     if (events.length === 0) {
       return res.status(404).json({ error: 'Event not found.' });
     }
-    
+
     if (events[0].user_id !== req.user.id) {
       return res.status(403).json({ error: 'Access denied. You do not own this event.' });
     }
 
     // Supprimer l'événement (et ses commentaires via CASCADE)
     await connection.query('DELETE FROM events WHERE id = ?', [req.params.id]);
-    
+
     connection.release();
     res.status(204).end();
   } catch (error) {
@@ -441,8 +446,8 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       method: 'DELETE',
       path: `/api/events/${req.params.id}`,
       statusCode: 500,
-      error: error,
-      user: req.user ? { id: req.user.id } : null
+      error,
+      user: req.user ? { id: req.user.id } : null,
     });
     res.status(500).json({ error: 'An error occurred while deleting event.' });
   }
@@ -484,13 +489,13 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 router.get('/:id/comments', authenticateToken, async (req, res) => {
   try {
     const connection = await pool.getConnection();
-    
+
     // Vérifier que l'événement existe et appartient à l'utilisateur
     const [events] = await connection.query(
       'SELECT id, user_id FROM events WHERE id = ?',
-      [req.params.id]
+      [req.params.id],
     );
-    
+
     if (events.length === 0) {
       return res.status(404).json({ error: 'Event not found.' });
     }
@@ -507,19 +512,19 @@ router.get('/:id/comments', authenticateToken, async (req, res) => {
        LEFT JOIN users u ON ec.user_id = u.id
        WHERE ec.event_id = ?
        ORDER BY ec.created_at ASC`,
-      [req.params.id]
+      [req.params.id],
     );
-    
-    const result = comments.map(c => ({
+
+    const result = comments.map((c) => ({
       id: c.id,
       event_id: c.event_id,
       user_id: c.user_id,
       text: c.text,
       created_at: c.created_at,
       username: c.username,
-      profil_img_url: c.profil_img_url
+      profil_img_url: c.profil_img_url,
     }));
-    
+
     connection.release();
     res.json(result);
   } catch (error) {
@@ -527,8 +532,8 @@ router.get('/:id/comments', authenticateToken, async (req, res) => {
       method: 'GET',
       path: `/api/events/${req.params.id}/comments`,
       statusCode: 500,
-      error: error,
-      user: req.user ? { id: req.user.id } : null
+      error,
+      user: req.user ? { id: req.user.id } : null,
     });
     res.status(500).json({ error: 'An error occurred while fetching comments.' });
   }
@@ -582,22 +587,22 @@ router.post('/:id/comments', authenticateToken, async (req, res) => {
 
   try {
     const connection = await pool.getConnection();
-    
+
     // Vérifier que l'événement existe
     const [events] = await connection.query(
       'SELECT id FROM events WHERE id = ?',
-      [req.params.id]
+      [req.params.id],
     );
-    
+
     if (events.length === 0) {
       return res.status(404).json({ error: 'Event not found.' });
     }
 
     const commentId = uuidv4();
-    
+
     await connection.query(
       'INSERT INTO event_comments (id, event_id, user_id, text) VALUES (?, ?, ?, ?)',
-      [commentId, req.params.id, req.user.id, text]
+      [commentId, req.params.id, req.user.id, text],
     );
 
     // Récupérer le commentaire créé
@@ -607,9 +612,9 @@ router.post('/:id/comments', authenticateToken, async (req, res) => {
        FROM event_comments ec
        LEFT JOIN users u ON ec.user_id = u.id
        WHERE ec.id = ?`,
-      [commentId]
+      [commentId],
     );
-    
+
     connection.release();
 
     res.status(201).json({
@@ -619,15 +624,15 @@ router.post('/:id/comments', authenticateToken, async (req, res) => {
       text: comments[0].text,
       created_at: comments[0].created_at,
       username: comments[0].username,
-      profil_img_url: comments[0].profil_img_url
+      profil_img_url: comments[0].profil_img_url,
     });
   } catch (error) {
     logger.error('Error creating event comment', {
       method: 'POST',
       path: `/api/events/${req.params.id}/comments`,
       statusCode: 500,
-      error: error,
-      user: req.user ? { id: req.user.id } : null
+      error,
+      user: req.user ? { id: req.user.id } : null,
     });
     res.status(500).json({ error: 'An error occurred while creating comment.' });
   }
@@ -689,24 +694,24 @@ router.put('/:id/comments/:commentId', authenticateToken, async (req, res) => {
 
   try {
     const connection = await pool.getConnection();
-    
+
     // Vérifier que le commentaire existe et appartient à l'utilisateur
     const [comments] = await connection.query(
       'SELECT id, user_id FROM event_comments WHERE id = ? AND event_id = ?',
-      [req.params.commentId, req.params.id]
+      [req.params.commentId, req.params.id],
     );
-    
+
     if (comments.length === 0) {
       return res.status(404).json({ error: 'Comment not found.' });
     }
-    
+
     if (comments[0].user_id !== req.user.id) {
       return res.status(403).json({ error: 'Access denied. You do not own this comment.' });
     }
 
     await connection.query(
       'UPDATE event_comments SET text = ? WHERE id = ?',
-      [text, req.params.commentId]
+      [text, req.params.commentId],
     );
 
     // Récupérer le commentaire mis à jour
@@ -716,11 +721,11 @@ router.put('/:id/comments/:commentId', authenticateToken, async (req, res) => {
        FROM event_comments ec
        LEFT JOIN users u ON ec.user_id = u.id
        WHERE ec.id = ?`,
-      [req.params.commentId]
+      [req.params.commentId],
     );
-    
+
     connection.release();
-    
+
     res.json({
       id: updatedComments[0].id,
       event_id: updatedComments[0].event_id,
@@ -728,15 +733,15 @@ router.put('/:id/comments/:commentId', authenticateToken, async (req, res) => {
       text: updatedComments[0].text,
       created_at: updatedComments[0].created_at,
       username: updatedComments[0].username,
-      profil_img_url: updatedComments[0].profil_img_url
+      profil_img_url: updatedComments[0].profil_img_url,
     });
   } catch (error) {
     logger.error('Error updating event comment', {
       method: 'PUT',
       path: `/api/events/${req.params.id}/comments/${req.params.commentId}`,
       statusCode: 500,
-      error: error,
-      user: req.user ? { id: req.user.id } : null
+      error,
+      user: req.user ? { id: req.user.id } : null,
     });
     res.status(500).json({ error: 'An error occurred while updating comment.' });
   }
@@ -776,23 +781,23 @@ router.put('/:id/comments/:commentId', authenticateToken, async (req, res) => {
 router.delete('/:id/comments/:commentId', authenticateToken, async (req, res) => {
   try {
     const connection = await pool.getConnection();
-    
+
     // Vérifier que le commentaire existe et appartient à l'utilisateur
     const [comments] = await connection.query(
       'SELECT id, user_id FROM event_comments WHERE id = ? AND event_id = ?',
-      [req.params.commentId, req.params.id]
+      [req.params.commentId, req.params.id],
     );
-    
+
     if (comments.length === 0) {
       return res.status(404).json({ error: 'Comment not found.' });
     }
-    
+
     if (comments[0].user_id !== req.user.id) {
       return res.status(403).json({ error: 'Access denied. You do not own this comment.' });
     }
 
     await connection.query('DELETE FROM event_comments WHERE id = ?', [req.params.commentId]);
-    
+
     connection.release();
     res.status(204).end();
   } catch (error) {
@@ -800,8 +805,8 @@ router.delete('/:id/comments/:commentId', authenticateToken, async (req, res) =>
       method: 'DELETE',
       path: `/api/events/${req.params.id}/comments/${req.params.commentId}`,
       statusCode: 500,
-      error: error,
-      user: req.user ? { id: req.user.id } : null
+      error,
+      user: req.user ? { id: req.user.id } : null,
     });
     res.status(500).json({ error: 'An error occurred while deleting comment.' });
   }

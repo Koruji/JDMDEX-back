@@ -11,17 +11,18 @@ const upload = multer({
   storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => {
     const allowedExts = /\.(jpe?g|png|webp|gif|heic|heif)$/i;
-    const allowedMime = file.mimetype.startsWith('image/') || file.mimetype === 'application/octet-stream';
+    const allowedMime = file.mimetype.startsWith('image/')
+      || file.mimetype === 'application/octet-stream';
     if (!allowedMime && !allowedExts.test(file.originalname)) {
       return cb(new Error('Only images are allowed'));
     }
-    cb(null, true);
+    return cb(null, true);
   },
 });
 
-const toInt = (v) => (v === '' || v == null) ? null : (parseInt(v) || null);
-const toFloat = (v) => (v === '' || v == null) ? null : (parseFloat(v) || null);
-const toStr = (v) => (v === '' || v == null) ? null : String(v);
+const toInt = (v) => ((v === '' || v == null) ? null : (parseInt(v, 10) || null));
+const toFloat = (v) => ((v === '' || v == null) ? null : (parseFloat(v) || null));
+const toStr = (v) => ((v === '' || v == null) ? null : String(v));
 
 const BUNNY_PULL_ZONE = process.env.BUNNY_PULL_ZONE || 'jdmdex-cdn.loocist23.fr';
 
@@ -136,11 +137,11 @@ const BUNNY_PULL_ZONE = process.env.BUNNY_PULL_ZONE || 'jdmdex-cdn.loocist23.fr'
 async function carWithPhotos(car, connection) {
   const [photos] = await connection.query(
     'SELECT * FROM photos WHERE car_id = ? ORDER BY is_primary DESC, created_at ASC',
-    [car.id]
+    [car.id],
   );
-  const photosWithUrls = photos.map(photo => ({
+  const photosWithUrls = photos.map((photo) => ({
     ...photo,
-    url: `https://${BUNNY_PULL_ZONE}/${photo.filename}`
+    url: `https://${BUNNY_PULL_ZONE}/${photo.filename}`,
   }));
   return { ...car, photos: photosWithUrls };
 }
@@ -173,16 +174,16 @@ async function carWithPhotos(car, connection) {
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const connection = await pool.getConnection();
-    
+
     const [cars] = await connection.query(
       'SELECT * FROM cars WHERE user_id = ? ORDER BY created_at DESC',
-      [req.user.id]
+      [req.user.id],
     );
-    
+
     const result = await Promise.all(
-      cars.map(async (car) => await carWithPhotos(car, connection))
+      cars.map(async (car) => await carWithPhotos(car, connection)),
     );
-    
+
     connection.release();
     res.json(result);
   } catch (error) {
@@ -190,8 +191,8 @@ router.get('/', authenticateToken, async (req, res) => {
       method: 'GET',
       path: '/api/cars',
       statusCode: 500,
-      error: error,
-      user: req.user ? { id: req.user.id } : null
+      error,
+      user: req.user ? { id: req.user.id } : null,
     });
     res.status(500).json({ error: 'An error occurred while fetching cars.' });
   }
@@ -232,27 +233,27 @@ router.get('/', authenticateToken, async (req, res) => {
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const connection = await pool.getConnection();
-    
+
     const [cars] = await connection.query(
       'SELECT * FROM cars WHERE id = ? AND user_id = ?',
-      [req.params.id, req.user.id]
+      [req.params.id, req.user.id],
     );
-    
+
     if (cars.length === 0) {
       return res.status(404).json({ error: 'Car not found or not authorized.' });
     }
-    
+
     const car = await carWithPhotos(cars[0], connection);
     connection.release();
-    
+
     res.json(car);
   } catch (error) {
     logger.error('Error fetching car by ID', {
       method: 'GET',
       path: `/api/cars/${req.params.id}`,
       statusCode: 500,
-      error: error,
-      user: req.user ? { id: req.user.id } : null
+      error,
+      user: req.user ? { id: req.user.id } : null,
     });
     res.status(500).json({ error: 'An error occurred while fetching the car.' });
   }
@@ -340,7 +341,9 @@ router.get('/:id', authenticateToken, async (req, res) => {
  */
 // POST /api/cars - Créer une nouvelle voiture avec photos optionnelles
 router.post('/', authenticateToken, upload.array('photos', 10), async (req, res) => {
-  const { name, brand, year, horsepower, engine, mileage, owner, location, latitude, longitude } = req.body;
+  const {
+    name, brand, year, horsepower, engine, mileage, owner, location, latitude, longitude,
+  } = req.body;
 
   if (!name) {
     return res.status(400).json({ error: 'name is required' });
@@ -350,14 +353,16 @@ router.post('/', authenticateToken, upload.array('photos', 10), async (req, res)
 
   try {
     const connection = await pool.getConnection();
-    
+
     // Créer la voiture
     const [result] = await connection.query(
-      `INSERT INTO cars (name, brand, year, horsepower, engine, mileage, owner, location, latitude, longitude, user_id)
+      `INSERT INTO cars
+        (name, brand, year, horsepower, engine, mileage,
+          owner, location, latitude, longitude, user_id)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [name, toStr(brand), toInt(year), toInt(horsepower),
-       toStr(engine), toInt(mileage), toStr(owner),
-       toStr(location), toFloat(latitude), toFloat(longitude), req.user.id]
+        toStr(engine), toInt(mileage), toStr(owner),
+        toStr(location), toFloat(latitude), toFloat(longitude), req.user.id],
     );
 
     const carId = result.insertId;
@@ -366,12 +371,12 @@ router.post('/', authenticateToken, upload.array('photos', 10), async (req, res)
     if (req.files && req.files.length > 0) {
       for (const [idx, file] of req.files.entries()) {
         const filePath = generateFilePath(req.user.id, carId, file.originalname);
-        const fileUrl = await uploadFile(file.buffer, filePath);
+        await uploadFile(file.buffer, filePath);
         uploadedFiles.push(filePath);
-        
+
         await connection.query(
           'INSERT INTO photos (car_id, filename, is_primary) VALUES (?, ?, ?)',
-          [carId, filePath, idx === 0 ? 1 : 0]
+          [carId, filePath, idx === 0 ? 1 : 0],
         );
       }
     }
@@ -379,9 +384,9 @@ router.post('/', authenticateToken, upload.array('photos', 10), async (req, res)
     // Récupérer la voiture avec ses photos
     const [cars] = await connection.query(
       'SELECT * FROM cars WHERE id = ?',
-      [carId]
+      [carId],
     );
-    
+
     const car = await carWithPhotos(cars[0], connection);
     connection.release();
 
@@ -391,18 +396,18 @@ router.post('/', authenticateToken, upload.array('photos', 10), async (req, res)
       method: 'POST',
       path: '/api/cars',
       statusCode: 500,
-      error: error,
+      error,
       user: req.user ? { id: req.user.id } : null,
-      requestBody: req.body
+      requestBody: req.body,
     });
-    
+
     // Supprimer les fichiers uploadés sur Bunny en cas d'erreur
     if (uploadedFiles.length > 0) {
       for (const fileName of uploadedFiles) {
         await deleteFile(fileName).catch(() => {});
       }
     }
-    
+
     res.status(500).json({ error: 'An error occurred while creating the car.' });
   }
 });
@@ -481,34 +486,37 @@ router.post('/', authenticateToken, upload.array('photos', 10), async (req, res)
 router.put('/:id', authenticateToken, async (req, res) => {
   try {
     const connection = await pool.getConnection();
-    
+
     // Vérifier que la voiture existe et appartient à l'utilisateur
     const [cars] = await connection.query(
       'SELECT * FROM cars WHERE id = ? AND user_id = ?',
-      [req.params.id, req.user.id]
+      [req.params.id, req.user.id],
     );
-    
+
     if (cars.length === 0) {
       return res.status(404).json({ error: 'Car not found or not authorized.' });
     }
 
-    const { name, brand, year, horsepower, engine, mileage, owner, location, latitude, longitude } = req.body;
+    const {
+      name, brand, year, horsepower, engine, mileage, owner, location, latitude, longitude,
+    } = req.body;
 
     await connection.query(
       `UPDATE cars SET
         name = ?, brand = ?, year = ?, horsepower = ?, engine = ?,
         mileage = ?, owner = ?, location = ?, latitude = ?, longitude = ?,
         updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
+        WHERE id = ?`,
       [name, toStr(brand), toInt(year), toInt(horsepower), toStr(engine),
-       toInt(mileage), toStr(owner), toStr(location), toFloat(latitude), toFloat(longitude), req.params.id]
+        toInt(mileage), toStr(owner), toStr(location),
+        toFloat(latitude), toFloat(longitude), req.params.id],
     );
 
     const [updatedCars] = await connection.query(
       'SELECT * FROM cars WHERE id = ?',
-      [req.params.id]
+      [req.params.id],
     );
-    
+
     const car = await carWithPhotos(updatedCars[0], connection);
     connection.release();
 
@@ -518,8 +526,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
       method: 'PUT',
       path: `/api/cars/${req.params.id}`,
       statusCode: 500,
-      error: error,
-      user: req.user ? { id: req.user.id } : null
+      error,
+      user: req.user ? { id: req.user.id } : null,
     });
     res.status(500).json({ error: 'An error occurred while updating the car.' });
   }
@@ -559,7 +567,7 @@ router.patch('/:id', authenticateToken, async (req, res) => {
 
     const [cars] = await connection.query(
       'SELECT * FROM cars WHERE id = ? AND user_id = ?',
-      [req.params.id, req.user.id]
+      [req.params.id, req.user.id],
     );
 
     if (cars.length === 0) {
@@ -571,7 +579,7 @@ router.patch('/:id', authenticateToken, async (req, res) => {
 
     await connection.query(
       'UPDATE cars SET liked = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [liked, req.params.id]
+      [liked, req.params.id],
     );
 
     const [updated] = await connection.query('SELECT * FROM cars WHERE id = ?', [req.params.id]);
@@ -584,8 +592,8 @@ router.patch('/:id', authenticateToken, async (req, res) => {
       method: 'PATCH',
       path: `/api/cars/${req.params.id}`,
       statusCode: 500,
-      error: error,
-      user: req.user ? { id: req.user.id } : null
+      error,
+      user: req.user ? { id: req.user.id } : null,
     });
     res.status(500).json({ error: 'An error occurred while updating the car.' });
   }
@@ -595,13 +603,13 @@ router.patch('/:id', authenticateToken, async (req, res) => {
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     const connection = await pool.getConnection();
-    
+
     // Vérifier que la voiture existe et appartient à l'utilisateur
     const [cars] = await connection.query(
       'SELECT * FROM cars WHERE id = ? AND user_id = ?',
-      [req.params.id, req.user.id]
+      [req.params.id, req.user.id],
     );
-    
+
     if (cars.length === 0) {
       return res.status(404).json({ error: 'Car not found or not authorized.' });
     }
@@ -609,16 +617,16 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     // Supprimer les photos de Bunny CDN
     const [photos] = await connection.query(
       'SELECT filename FROM photos WHERE car_id = ?',
-      [req.params.id]
+      [req.params.id],
     );
-    
+
     for (const p of photos) {
       await deleteFile(p.filename).catch(() => {});
     }
 
     // Supprimer la voiture (et ses photos via CASCADE)
     await connection.query('DELETE FROM cars WHERE id = ?', [req.params.id]);
-    
+
     connection.release();
     res.status(204).end();
   } catch (error) {
@@ -626,8 +634,8 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       method: 'DELETE',
       path: `/api/cars/${req.params.id}`,
       statusCode: 500,
-      error: error,
-      user: req.user ? { id: req.user.id } : null
+      error,
+      user: req.user ? { id: req.user.id } : null,
     });
     res.status(500).json({ error: 'An error occurred while deleting the car.' });
   }
@@ -680,13 +688,13 @@ router.post('/:id/photos', authenticateToken, upload.array('photos', 10), async 
 
   try {
     const connection = await pool.getConnection();
-    
+
     // Vérifier que la voiture existe et appartient à l'utilisateur
     const [cars] = await connection.query(
       'SELECT * FROM cars WHERE id = ? AND user_id = ?',
-      [req.params.id, req.user.id]
+      [req.params.id, req.user.id],
     );
-    
+
     if (cars.length === 0) {
       return res.status(404).json({ error: 'Car not found or not authorized.' });
     }
@@ -698,7 +706,7 @@ router.post('/:id/photos', authenticateToken, upload.array('photos', 10), async 
     // Vérifier s'il y a déjà une photo principale
     const [existingPrimary] = await connection.query(
       'SELECT id FROM photos WHERE car_id = ? AND is_primary = 1',
-      [req.params.id]
+      [req.params.id],
     );
 
     // Upload photos to Bunny CDN with user/car directory structure
@@ -706,19 +714,19 @@ router.post('/:id/photos', authenticateToken, upload.array('photos', 10), async 
       const filePath = generateFilePath(req.user.id, req.params.id, file.originalname);
       await uploadFile(file.buffer, filePath);
       uploadedFiles.push(filePath);
-      
+
       await connection.query(
         'INSERT INTO photos (car_id, filename, is_primary) VALUES (?, ?, ?)',
-        [req.params.id, filePath, !existingPrimary.length && idx === 0 ? 1 : 0]
+        [req.params.id, filePath, !existingPrimary.length && idx === 0 ? 1 : 0],
       );
     }
 
     // Récupérer la voiture avec ses photos
     const [carsWithPhotos] = await connection.query(
       'SELECT * FROM cars WHERE id = ?',
-      [req.params.id]
+      [req.params.id],
     );
-    
+
     const car = await carWithPhotos(carsWithPhotos[0], connection);
     connection.release();
 
@@ -728,18 +736,18 @@ router.post('/:id/photos', authenticateToken, upload.array('photos', 10), async 
       method: 'POST',
       path: `/api/cars/${req.params.id}/photos`,
       statusCode: 500,
-      error: error,
+      error,
       user: req.user ? { id: req.user.id } : null,
-      carId: req.params.id
+      carId: req.params.id,
     });
-    
+
     // Supprimer les fichiers uploadés sur Bunny en cas d'erreur
     if (uploadedFiles.length > 0) {
       for (const fileName of uploadedFiles) {
         await deleteFile(fileName).catch(() => {});
       }
     }
-    
+
     res.status(500).json({ error: 'An error occurred while adding photos.' });
   }
 });
@@ -779,20 +787,20 @@ router.post('/:id/photos', authenticateToken, upload.array('photos', 10), async 
 router.delete('/:id/photos/:photoId', authenticateToken, async (req, res) => {
   try {
     const connection = await pool.getConnection();
-    
+
     // Vérifier que la photo existe et appartient à une voiture de l'utilisateur
     const [photos] = await connection.query(
       `SELECT p.*, c.user_id 
        FROM photos p 
        JOIN cars c ON p.car_id = c.id 
        WHERE p.id = ? AND p.car_id = ?`,
-      [req.params.photoId, req.params.id]
+      [req.params.photoId, req.params.id],
     );
-    
+
     if (photos.length === 0) {
       return res.status(404).json({ error: 'Photo not found or not authorized.' });
     }
-    
+
     if (photos[0].user_id !== req.user.id) {
       return res.status(403).json({ error: 'Access denied. You do not own this resource.' });
     }
@@ -809,13 +817,13 @@ router.delete('/:id/photos/:photoId', authenticateToken, async (req, res) => {
     if (photo.is_primary) {
       const [nextPhotos] = await connection.query(
         'SELECT id FROM photos WHERE car_id = ? ORDER BY created_at ASC LIMIT 1',
-        [req.params.id]
+        [req.params.id],
       );
-      
+
       if (nextPhotos.length > 0) {
         await connection.query(
           'UPDATE photos SET is_primary = 1 WHERE id = ?',
-          [nextPhotos[0].id]
+          [nextPhotos[0].id],
         );
       }
     }
@@ -827,10 +835,10 @@ router.delete('/:id/photos/:photoId', authenticateToken, async (req, res) => {
       method: 'DELETE',
       path: `/api/cars/${req.params.id}/photos/${req.params.photoId}`,
       statusCode: 500,
-      error: error,
+      error,
       user: req.user ? { id: req.user.id } : null,
       carId: req.params.id,
-      photoId: req.params.photoId
+      photoId: req.params.photoId,
     });
     res.status(500).json({ error: 'An error occurred while deleting the photo.' });
   }
@@ -892,15 +900,53 @@ router.delete('/:id/photos/:photoId', authenticateToken, async (req, res) => {
 // POST /api/cars/recognize - Reconnaissance AI (mock)
 router.post('/recognize', upload.single('photo'), (req, res) => {
   const jdmModels = [
-    { brand: 'Nissan', name: 'Skyline GT-R', year: 1999, horsepower: 280, engine: 'RB26DETT 2.6L Twin-Turbo' },
-    { brand: 'Toyota', name: 'Supra RZ', year: 1997, horsepower: 280, engine: '2JZ-GTE 3.0L Twin-Turbo' },
-    { brand: 'Mazda', name: 'RX-7 FD', year: 1993, horsepower: 255, engine: '13B-REW Rotary Twin-Turbo' },
-    { brand: 'Honda', name: 'NSX Type-R', year: 1992, horsepower: 270, engine: 'C30A 3.0L V6' },
-    { brand: 'Subaru', name: 'Impreza WRX STI', year: 2001, horsepower: 280, engine: 'EJ207 2.0L Turbo' },
-    { brand: 'Mitsubishi', name: 'Lancer Evolution VI', year: 1999, horsepower: 280, engine: '4G63T 2.0L Turbo' },
+    {
+      brand: 'Nissan',
+      name: 'Skyline GT-R',
+      year: 1999,
+      horsepower: 280,
+      engine: 'RB26DETT 2.6L Twin-Turbo',
+    },
+    {
+      brand: 'Toyota',
+      name: 'Supra RZ',
+      year: 1997,
+      horsepower: 280,
+      engine: '2JZ-GTE 3.0L Twin-Turbo',
+    },
+    {
+      brand: 'Mazda',
+      name: 'RX-7 FD',
+      year: 1993,
+      horsepower: 255,
+      engine: '13B-REW Rotary Twin-Turbo',
+    },
+    {
+      brand: 'Honda',
+      name: 'NSX Type-R',
+      year: 1992,
+      horsepower: 270,
+      engine: 'C30A 3.0L V6',
+    },
+    {
+      brand: 'Subaru',
+      name: 'Impreza WRX STI',
+      year: 2001,
+      horsepower: 280,
+      engine: 'EJ207 2.0L Turbo',
+    },
+    {
+      brand: 'Mitsubishi',
+      name: 'Lancer Evolution VI',
+      year: 1999,
+      horsepower: 280,
+      engine: '4G63T 2.0L Turbo',
+    },
   ];
   const pick = jdmModels[Math.floor(Math.random() * jdmModels.length)];
-  res.json({ ...pick, mileage: null, owner: null, confidence: Math.floor(70 + Math.random() * 25) });
+  res.json({
+    ...pick, mileage: null, owner: null, confidence: Math.floor(70 + Math.random() * 25),
+  });
 });
 
 module.exports = router;

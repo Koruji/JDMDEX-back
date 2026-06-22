@@ -13,7 +13,7 @@ JDMDex API - Japanese car Pokédex backend avec authentification JWT et base de 
 ### 1. Cloner le dépôt et installer les dépendances
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/Koruji/JDMDEX-back.git
 cd JDMDEX-back
 npm install
 ```
@@ -203,6 +203,74 @@ Les tests peuvent être lancés avec :
 ```bash
 npm test
 ```
+
+## 🏗️ Architecture CI/CD
+
+### Diagramme du Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           STRATÉGIE DE BRANCHING                                │
+├───────────────────┬─────────────────┬─────────────────┬─────────────────┐
+│     Branch        │    Lint         │     Test        │     Deploy      │
+├───────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│    main           │      ✅         │      ✅         │      ✅         │
+│    develop        │      ✅         │      ✅         │      ✅         │
+│    fix/*          │      ✅         │      ✅         │      ❌          │
+│    feature/*      │      ✅         │      ✅         │      ❌          │
+│    ci/*           │      ✅         │      ✅         │      ❌          │
+└───────────────────┴─────────────────┴─────────────────┴─────────────────┘
+
+┌───────────────────────────────────────────────────────────────────────────────────┐
+│                           FLUX CI/CD (branches develop/main)                      │
+├──────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
+│   Git Push/      │───▶│   Lint          │───▶│   Test +        │───▶│   Build Docker   │───▶
+│   Pull Request   │    │   (ESLint)      │    │   Coverage      │    │   (multi-stage)  │    
+└──────────────────┘    └─────────────────┘    └─────────────────┘    └──────────────────┘
+                                                                                       │
+                                                                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                           DÉPLOIEMENT VPS                                               │
+├───────────────────┐    ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   GitHub Actions  │───▶│   SSH Connect   │───▶│   docker-compose │───▶│   API en        │
+│   (build image)   │    │   (VPS)         │    │   down + up -d   │    │   production    │
+└───────────────────┘    └─────────────────┘    └──────────────────┘    └─────────────────┘
+```
+
+## 🔍 Analyse CI/CD
+
+### Pourquoi ces outils ont été choisis ?
+
+| **Outil**          | **Justification** | **Alternatives envisagées** | **Pourquoi pas l'alternative ?** |
+|--------------------|-------------------|----------------------------|----------------------------------|
+| **GitHub Actions** | Intégration native avec GitHub, gratuite pour les dépôts publics, facile à configurer | GitLab CI, Jenkins | On maîtrise GitHub, limites plus élevées, pas besoin de maintenir un serveur CI externe |
+| **Docker**         | Standard de conteneurisation, portable, reproductible | LXC, Podman | Docker est le plus répandu, mieux intégré avec CI/CD |
+| **Multi-stage Build** | Réduit la taille de l'image finale | Single-stage | Évite d'embarquer les dépendances dev en production |
+| **VPS (SSH)**      | Simple, économique, suffisant pour le prototype | Kubernetes, Serverless | Pas besoin de complexité K8s pour 1 API, coût maîtrisé |
+| **Jest**           | Framework de test JavaScript populaire, bien intégré | Mocha, Vitest | Déjà utilisé dans le projet, bonne documentation |
+| **ESLint**         | Standard de linting JavaScript | Prettier (seul) | ESLint fait du linting ET du formatting, plus complet |
+
+### Outils non retenus (pour l'instant) 🚧
+
+| **Outil**          | **Pourquoi pas maintenant ?** | **Quand l'ajouter ?** |
+|--------------------|-------------------------------|------------------------|
+| **SonarQube**      | Complexité de setup, surdimensionné pour un petit projet | Quand le projet grandit (10k+ lignes) ou en entreprise |
+| **Kubernetes**     | Overkill pour une seule API sur un VPS | Quand on passe à un homelab avec plusieurs services |
+| **Terraform**      | Pas d'infrastructure cloud complexe à provisionner | Si on migre vers AWS/GCP/Azure |
+| **Snyk/Trivy**     | Scan de vulnérabilités pas critique pour un prototype | Avant la mise en production ou pour un projet professionnel |
+| **Quality Gate**   | Nécessite SonarQube ou outil similaire | Quand SonarQube sera configuré |
+| **Semantic Release** | Pas encore de versioning SemVer structuré | Quand le projet sera stable et publié |
+
+### Stratégie de Branching
+
+- **`main`** : Branch de production. Les pushes sont protégés (via GitHub). Déploiement automatique.
+- **`develop`** : Branch d'intégration. Reçoit les features validées. Déploiement automatique.
+- **`feature/*`** : Développement de nouvelles fonctionnalités. Test + Lint seulement, pas de déploiement.
+- **`fix/*`** : Corrections de bugs. Test + Lint seulement, pas de déploiement.
+- **`ci/*`** : Améliorations de la CI/CD. Test + Lint seulement, pas de déploiement.
+
+### Mesure de Couverture
+Actuellement activée avec Jest (`--coverage`). Les rapports sont générés dans le dossier `coverage/` et sont téléchargeables via les artifacts GitHub Actions. **Objectif futur** : Intégrer un seuil minimal (ex: 80%) pour bloquer le merge si la couverture baisse.
 
 ## Licence
 

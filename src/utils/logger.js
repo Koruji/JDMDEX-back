@@ -22,7 +22,7 @@ class ApiLogger {
       error: 0,
       warn: 1,
       info: 2,
-      debug: 3
+      debug: 3,
     };
     this.minLevel = this.logLevels[LOG_LEVEL] || 0;
   }
@@ -46,8 +46,8 @@ class ApiLogger {
    */
   formatMessage(level, message, meta = {}) {
     const timestamp = this.getTimestamp();
-    const metaStr = Object.keys(meta).length > 0 
-      ? ` | ${JSON.stringify(meta)}` 
+    const metaStr = Object.keys(meta).length > 0
+      ? ` | ${JSON.stringify(meta)}`
       : '';
     return `[${timestamp}] [${level.toUpperCase()}] ${message}${metaStr}`;
   }
@@ -58,7 +58,7 @@ class ApiLogger {
   writeToFile(message) {
     try {
       const stream = fs.createWriteStream(LOG_FILE, { flags: 'a' });
-      stream.write(message + '\n');
+      stream.write(`${message}\n`);
       stream.end();
     } catch (error) {
       // Si on ne peut pas écrire dans le fichier, afficher sur la console
@@ -86,7 +86,7 @@ class ApiLogger {
       statusCode = 500,
       error = null,
       requestBody = null,
-      user = null
+      user = null,
     } = options;
 
     const meta = {
@@ -96,14 +96,14 @@ class ApiLogger {
       ...(error && { error: error.message || String(error) }),
       ...(error && error.stack && { stack: error.stack.split('\n')[0] }),
       ...(user && { userId: user.id, username: user.username }),
-      ...(requestBody && { requestBody: JSON.stringify(requestBody).substring(0, 200) })
+      ...(requestBody && { requestBody: JSON.stringify(requestBody).substring(0, 200) }),
     };
 
     const logMessage = this.formatMessage('error', message, meta);
-    
+
     // Écrire dans le fichier
     this.writeToFile(logMessage);
-    
+
     // Also log to console for immediate visibility
     console.error(logMessage);
   }
@@ -117,7 +117,7 @@ class ApiLogger {
     const meta = {
       method: options.method,
       path: options.path,
-      statusCode: options.statusCode
+      statusCode: options.statusCode,
     };
 
     const logMessage = this.formatMessage('warn', message, meta);
@@ -134,7 +134,7 @@ class ApiLogger {
     const meta = {
       method: options.method,
       path: options.path,
-      statusCode: options.statusCode
+      statusCode: options.statusCode,
     };
 
     const logMessage = this.formatMessage('info', message, meta);
@@ -151,7 +151,7 @@ class ApiLogger {
     const meta = {
       method: options.method,
       path: options.path,
-      statusCode: options.statusCode
+      statusCode: options.statusCode,
     };
 
     const logMessage = this.formatMessage('debug', message, meta);
@@ -166,22 +166,22 @@ class ApiLogger {
     const {
       method = 'UNKNOWN',
       url = 'unknown',
-      requestData = null
+      requestData = null,
     } = options;
 
     const message = `External API Error [${serviceName}]`;
-    
+
     const meta = {
       service: serviceName,
       method,
       url,
       error: error.message || String(error),
-      ...(error.response && { 
+      ...(error.response && {
         status: error.response.status,
         statusText: error.response.statusText,
-        responseData: JSON.stringify(error.response.data).substring(0, 200)
+        responseData: JSON.stringify(error.response.data).substring(0, 200),
       }),
-      ...(requestData && { requestData: JSON.stringify(requestData).substring(0, 200) })
+      ...(requestData && { requestData: JSON.stringify(requestData).substring(0, 200) }),
     };
 
     const logMessage = this.formatMessage('error', message, meta);
@@ -195,17 +195,17 @@ class ApiLogger {
   databaseError(error, options = {}) {
     const {
       query = 'unknown',
-      operation = 'query'
+      operation = 'query',
     } = options;
 
     const message = `Database Error [${operation}]`;
-    
+
     const meta = {
       operation,
       query: query.substring(0, 200),
       error: error.message || String(error),
       ...(error.code && { code: error.code }),
-      ...(error.errno && { errno: error.errno })
+      ...(error.errno && { errno: error.errno }),
     };
 
     const logMessage = this.formatMessage('error', message, meta);
