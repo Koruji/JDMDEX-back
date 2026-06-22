@@ -17,19 +17,23 @@ const router = express.Router();
  * @swagger
  * /api/events:
  *   get:
- *     summary: Get all events
+ *     summary: Get all events for the current user
  *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: List of all events
+ *         description: List of events for the current user
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/Event'
+ *       401:
+ *         description: Not authenticated
  */
-router.get('/', async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
     const connection = await pool.getConnection();
     
@@ -41,8 +45,10 @@ router.get('/', async (req, res) => {
        FROM events e
        LEFT JOIN users u ON e.user_id = u.id
        LEFT JOIN event_comments ec ON e.id = ec.event_id
+       WHERE e.user_id = ?
        GROUP BY e.id
-       ORDER BY e.date_start ASC`
+       ORDER BY e.date_start ASC`,
+      [req.user.id]
     );
     
     const result = events.map(event => ({
@@ -57,7 +63,8 @@ router.get('/', async (req, res) => {
       method: 'GET',
       path: '/api/events',
       statusCode: 500,
-      error: error
+      error: error,
+      user: req.user ? { id: req.user.id } : null
     });
     res.status(500).json({ error: 'An error occurred while fetching events.' });
   }
@@ -181,6 +188,8 @@ router.post('/', authenticateToken, async (req, res) => {
  *   get:
  *     summary: Get event by ID
  *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -202,10 +211,14 @@ router.post('/', authenticateToken, async (req, res) => {
  *                       type: array
  *                       items:
  *                         $ref: '#/components/schemas/EventComment'
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Not owner
  *       404:
  *         description: Event not found
  */
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const connection = await pool.getConnection();
     
@@ -221,6 +234,11 @@ router.get('/:id', async (req, res) => {
     
     if (events.length === 0) {
       return res.status(404).json({ error: 'Event not found.' });
+    }
+
+    // Vérifier que l'événement appartient à l'utilisateur connecté
+    if (events[0].user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied. You do not own this event.' });
     }
 
     // Récupérer les commentaires
@@ -254,7 +272,8 @@ router.get('/:id', async (req, res) => {
       method: 'GET',
       path: `/api/events/${req.params.id}`,
       statusCode: 500,
-      error: error
+      error: error,
+      user: req.user ? { id: req.user.id } : null
     });
     res.status(500).json({ error: 'An error occurred while fetching event.' });
   }
@@ -437,6 +456,8 @@ router.delete('/:id', authenticateToken, async (req, res) => {
  *   get:
  *     summary: Get all comments for an event
  *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -453,21 +474,30 @@ router.delete('/:id', authenticateToken, async (req, res) => {
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/EventComment'
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Not owner
  *       404:
  *         description: Event not found
  */
-router.get('/:id/comments', async (req, res) => {
+router.get('/:id/comments', authenticateToken, async (req, res) => {
   try {
     const connection = await pool.getConnection();
     
-    // Vérifier que l'événement existe
+    // Vérifier que l'événement existe et appartient à l'utilisateur
     const [events] = await connection.query(
-      'SELECT id FROM events WHERE id = ?',
+      'SELECT id, user_id FROM events WHERE id = ?',
       [req.params.id]
     );
     
     if (events.length === 0) {
       return res.status(404).json({ error: 'Event not found.' });
+    }
+
+    // Vérifier que l'événement appartient à l'utilisateur connecté
+    if (events[0].user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied. You do not own this event.' });
     }
 
     const [comments] = await connection.query(
@@ -497,7 +527,8 @@ router.get('/:id/comments', async (req, res) => {
       method: 'GET',
       path: `/api/events/${req.params.id}/comments`,
       statusCode: 500,
-      error: error
+      error: error,
+      user: req.user ? { id: req.user.id } : null
     });
     res.status(500).json({ error: 'An error occurred while fetching comments.' });
   }
