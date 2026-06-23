@@ -1,6 +1,71 @@
 # JDMDEX Backend
 
-JDMDex API - Japanese car Pokédex backend avec authentification JWT et base de données MariaDB.
+## Description du projet
+
+JDMDEX (Japanese Domestic Market Dex) est une application de référencement de voitures japonaises croisées lors d'événements et de rassemblements. L'idée est de constituer un historique des JDM rencontrées : chaque voiture est documentée avec des champs détaillés (moteur, puissance, kilométrage, localisation…) qui permettent d'engager un dialogue plus approfondi avec les propriétaires et d'enrichir ses connaissances mécaniques au fil des rencontres. Le projet se compose d'un backend API REST et d'un frontend séparé qui communiquent via HTTP.
+
+## Le backend — rôle de l'API
+
+L'API gère tout ce qui touche à la donnée et à la sécurité :
+- **Authentification** : inscription, connexion, émission et vérification de tokens JWT
+- **Gestion des voitures** : CRUD complet, isolation par utilisateur (chaque user ne voit que ses propres voitures)
+- **Upload de photos** : stockage via Bunny CDN, organisation par utilisateur et par voiture
+- **Événements et utilisateurs** : routes supplémentaires pour les événements liés aux voitures
+
+Le frontend ne fait qu'appeler ces routes — aucune logique métier ne lui est déléguée.
+
+## Analyse du projet
+
+> Y a-t-il des tests ? Faut-il en écrire ?
+
+**Oui, des tests existent.** Le dossier `src/tests/` contient des tests unitaires (génération de tokens JWT, middleware d'authentification) et des tests fonctionnels (vérification des droits d'accès par propriétaire). Ils sont exécutés avec Jest et la couverture est générée à chaque CI.
+
+Ce qui manque encore et mériterait d'être ajouté :
+- Tests d'intégration sur les routes CRUD (cars, events, users) avec une base de test dédiée
+- Tests de la route d'upload photo (mock Bunny CDN)
+- Un seuil de couverture minimum dans la CI (ex : 80%) pour bloquer un merge si la couverture régresse
+
+> Y a-t-il un build à produire ?
+
+**Oui : une image Docker.** Le `Dockerfile` utilise un build multi-stage pour produire une image de production allégée (sans les dépendances de développement). Cette image est construite automatiquement par la CI sur les branches `main` et `develop`, puis déployée sur le VPS via `docker-compose`.
+
+Il n'y a pas de bundle JavaScript à produire côté backend — Node.js exécute les fichiers source directement.
+
+> Où est-ce que le projet est censé tourner ?
+
+**Sur un VPS**, via Docker Compose. L'architecture est simple :
+- Un conteneur Node.js pour l'API
+- Un conteneur MariaDB pour la base de données
+
+Le déploiement est déclenché automatiquement par GitHub Actions sur push vers `develop`, via SSH. Il n'y a pas de Kubernetes, pas de cloud provider, pas de serverless — un seul serveur, un seul `docker-compose up -d`.
+
+> Quels sont les risques si on déploie du code cassé en production ?
+
+Les risques concrets pour ce projet :
+
+| Risque | Impact |
+|--------|--------|
+| Route d'auth cassée | Plus personne ne peut se connecter — l'application est inutilisable |
+| Mauvais filtre `user_id` | Un utilisateur peut voir ou modifier les voitures d'un autre |
+| Erreur de migration DB | Perte ou corruption de données, redémarrage impossible |
+| Upload Bunny CDN cassé | Les photos ne sont plus enregistrées, mais l'UI ne le signale pas forcément |
+| Fuite de JWT_SECRET | Tous les tokens existants peuvent être forgés — compromission totale |
+
+La CI (lint + tests + build) est la première ligne de défense. Sans elle, un push cassé part directement en prod.
+
+> Quels outils du cours sont réellement utiles pour CE projet ?
+
+| Outil | Utile ? | Pourquoi |
+|-------|---------|----------|
+| **GitHub Actions** | ✅ Oui | Pipeline complet déjà en place — lint, tests sur Node 22/24, build Docker, déploiement SSH sur `develop` |
+| **Docker / Docker Compose** | ✅ Oui | L'API et la DB tournent en conteneurs, c'est la base du déploiement |
+| **Jest + coverage** | ✅ Oui | Tests unitaires et fonctionnels déjà écrits, rapport de couverture généré en CI |
+| **ESLint** | ✅ Oui | Qualité de code vérifiée à chaque push, bloque les erreurs de style avant review |
+| **SSH deploy** | ✅ Oui | Le déploiement VPS est fait via `appleboy/ssh-action`, simple et efficace pour ce contexte |
+| **Kubernetes** | ❌ Pas maintenant | Overkill pour une API mono-instance sur un VPS — ajouter si on passe à un cluster |
+| **Terraform** | ❌ Pas maintenant | Pas d'infra cloud complexe à provisionner |
+| **SonarQube** | ❌ Pas maintenant | Surdimensionné pour ce volume de code, à envisager si le projet grandit |
+| **Snyk / Trivy** | ⚠️ À envisager | Utile avant une mise en prod réelle pour scanner les vulnérabilités des dépendances et de l'image Docker |
 
 ## Prérequis
 
@@ -58,6 +123,35 @@ Si vous préférez utiliser une instance MariaDB locale :
    ```bash
    npm run dev
    ```
+
+## Variables d'environnement
+
+| Variable | Description | Défaut |
+|----------|-------------|--------|
+| PORT | Port de l'application | 3000 |
+| NODE_ENV | Environnement (development, production) | development |
+| MYSQL_HOST | Hôte MariaDB | localhost |
+| MYSQL_PORT | Port MariaDB | 3306 |
+| MYSQL_DATABASE | Nom de la base de données | jdmdex |
+| MYSQL_USER | Utilisateur MariaDB | jdmdex_user |
+| MYSQL_PASSWORD | Mot de passe MariaDB | jdmdex_pass |
+| MYSQL_ROOT_PASSWORD | Mot de passe root MariaDB | rootpassword |
+| JWT_SECRET | Clé secrète pour JWT | supersecretjdmdexkey12345 |
+| JWT_EXPIRES_IN | Durée de validité du token | 24h |
+
+## Développement
+
+Pour le développement, vous pouvez utiliser nodemon :
+
+```bash
+npm run dev
+```
+
+Les tests peuvent être lancés avec :
+
+```bash
+npm test
+```
 
 ## API Endpoints
 
@@ -157,21 +251,6 @@ Content-Type: multipart/form-data
 - Chaque utilisateur ne peut accéder qu'à ses propres voitures et photos
 - Les requêtes aux routes protégées nécessitent un token valide
 
-## Variables d'environnement
-
-| Variable | Description | Défaut |
-|----------|-------------|--------|
-| PORT | Port de l'application | 3000 |
-| NODE_ENV | Environnement (development, production) | development |
-| MYSQL_HOST | Hôte MariaDB | localhost |
-| MYSQL_PORT | Port MariaDB | 3306 |
-| MYSQL_DATABASE | Nom de la base de données | jdmdex |
-| MYSQL_USER | Utilisateur MariaDB | jdmdex_user |
-| MYSQL_PASSWORD | Mot de passe MariaDB | jdmdex_pass |
-| MYSQL_ROOT_PASSWORD | Mot de passe root MariaDB | rootpassword |
-| JWT_SECRET | Clé secrète pour JWT | supersecretjdmdexkey12345 |
-| JWT_EXPIRES_IN | Durée de validité du token | 24h |
-
 ## Migration depuis SQLite
 
 Si vous aviez déjà des données dans SQLite et souhaitez les migrer vers MariaDB :
@@ -190,37 +269,9 @@ Si vous aviez déjà des données dans SQLite et souhaitez les migrer vers Maria
 
 Note : La structure des tables a changé (ajout de user_id dans cars, nouvelles tables users). Une migration automatique n'est pas fournie, vous devrez adapter manuellement.
 
-## Développement
-
-Pour le développement, vous pouvez utiliser nodemon :
-
-```bash
-npm run dev
-```
-
-Les tests peuvent être lancés avec :
-
-```bash
-npm test
-```
-
-## 🏗️ Architecture CI/CD
-
-### Diagramme du Pipeline
+## Architecture pipeline CI/CD
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                           STRATÉGIE DE BRANCHING                                │
-├───────────────────┬─────────────────┬─────────────────┬─────────────────┐
-│     Branch        │    Lint         │     Test        │     Deploy      │
-├───────────────────┼─────────────────┼─────────────────┼─────────────────┤
-│    main           │      ✅         │      ✅         │      ✅         │
-│    develop        │      ✅         │      ✅         │      ✅         │
-│    fix/*          │      ✅         │      ✅         │      ❌          │
-│    feature/*      │      ✅         │      ✅         │      ❌          │
-│    ci/*           │      ✅         │      ✅         │      ❌          │
-└───────────────────┴─────────────────┴─────────────────┴─────────────────┘
-
 ┌───────────────────────────────────────────────────────────────────────────────────┐
 │                           FLUX CI/CD (branches develop/main)                      │
 ├──────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
@@ -237,40 +288,105 @@ npm test
 └───────────────────┘    └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
 
-## 🔍 Analyse CI/CD
+### Stratégie de branching
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           STRATÉGIE DE BRANCHING                        │
+├───────────────────┬─────────────────┬─────────────────┬─────────────────┐
+│     Branch        │    Lint         │     Test        │     Deploy      │
+├───────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│    main           │      ✅         │      ✅         │      ✅         │
+│    develop        │      ✅         │      ✅         │      ✅         │
+│    fix/*          │      ✅         │      ✅         │      ❌         │
+│    feature/*      │      ✅         │      ✅         │      ❌         │
+│    ci/*           │      ✅         │      ✅         │      ❌         │
+└───────────────────┴─────────────────┴─────────────────┴─────────────────┘
+```
 
-### Pourquoi ces outils ont été choisis ?
+### Pourquoi ces outils ?
 
-| **Outil**          | **Justification** | **Alternatives envisagées** | **Pourquoi pas l'alternative ?** |
-|--------------------|-------------------|----------------------------|----------------------------------|
-| **GitHub Actions** | Intégration native avec GitHub, gratuite pour les dépôts publics, facile à configurer | GitLab CI, Jenkins | On maîtrise GitHub, limites plus élevées, pas besoin de maintenir un serveur CI externe |
-| **Docker**         | Standard de conteneurisation, portable, reproductible | LXC, Podman | Docker est le plus répandu, mieux intégré avec CI/CD |
-| **Multi-stage Build** | Réduit la taille de l'image finale | Single-stage | Évite d'embarquer les dépendances dev en production |
-| **VPS (SSH)**      | Simple, économique, suffisant pour le prototype | Kubernetes, Serverless | Pas besoin de complexité K8s pour 1 API, coût maîtrisé |
-| **Jest**           | Framework de test JavaScript populaire, bien intégré | Mocha, Vitest | Déjà utilisé dans le projet, bonne documentation |
-| **ESLint**         | Standard de linting JavaScript | Prettier (seul) | ESLint fait du linting ET du formatting, plus complet |
+| Outil | Justification | Alternatives écartées |
+|-------|---------------|-----------------------|
+| **GitHub Actions** | Intégration native GitHub, gratuit pour les dépôts publics | GitLab CI, Jenkins (nécessitent un serveur externe) |
+| **Node 22 & 24** | Tests sur les deux versions LTS actives | Node 26 (pas encore LTS) |
+| **Docker multi-stage** | Image de prod allégée, sans dépendances dev | Single-stage (embarque trop) |
+| **VPS SSH** | Simple, économique, suffisant pour ce prototype | K8s, Serverless (overkill) |
+| **Jest** | Bien intégré, déjà en place | Mocha, Vitest |
+| **ESLint** | Linting + formatting en un outil | Prettier seul (pas de linting) |
 
-### Outils non retenus (pour l'instant) 🚧
+### Outils non retenus
 
-| **Outil**          | **Pourquoi pas maintenant ?** | **Quand l'ajouter ?** |
-|--------------------|-------------------------------|------------------------|
-| **SonarQube**      | Complexité de setup, surdimensionné pour un petit projet | Quand le projet grandit (10k+ lignes) ou en entreprise |
-| **Kubernetes**     | Overkill pour une seule API sur un VPS | Quand on passe à un homelab avec plusieurs services |
-| **Terraform**      | Pas d'infrastructure cloud complexe à provisionner | Si on migre vers AWS/GCP/Azure |
-| **Snyk/Trivy**     | Scan de vulnérabilités pas critique pour un prototype | Avant la mise en production ou pour un projet professionnel |
-| **Quality Gate**   | Nécessite SonarQube ou outil similaire | Quand SonarQube sera configuré |
-| **Semantic Release** | Pas encore de versioning SemVer structuré | Quand le projet sera stable et publié |
+| Outil | Pourquoi pas maintenant | Quand l'ajouter |
+|-------|-------------------------|-----------------|
+| **SonarQube** | Surdimensionné pour ce volume de code | Si le projet dépasse ~10k lignes |
+| **Kubernetes** | Overkill pour une API mono-instance | Si on passe à un cluster multi-services |
+| **Terraform** | Pas d'infra cloud complexe | Si on migre vers AWS/GCP/Azure |
+| **Snyk / Trivy** | Non critique pour un prototype | Avant une mise en prod réelle |
+| **Semantic Release** | Pas de versioning SemVer structuré | Quand le projet sera stable et publié |
 
-### Stratégie de Branching
+### Mesure de couverture
 
-- **`main`** : Branch de production. Les pushes sont protégés (via GitHub). Déploiement automatique.
-- **`develop`** : Branch d'intégration. Reçoit les features validées. Déploiement automatique.
-- **`feature/*`** : Développement de nouvelles fonctionnalités. Test + Lint seulement, pas de déploiement.
-- **`fix/*`** : Corrections de bugs. Test + Lint seulement, pas de déploiement.
-- **`ci/*`** : Améliorations de la CI/CD. Test + Lint seulement, pas de déploiement.
+Rapport généré à chaque CI dans `coverage/`, téléchargeable via les artifacts GitHub Actions (rétention 7 jours). **Objectif futur** : ajouter un seuil minimal (ex : 80%) pour bloquer un merge si la couverture régresse.
 
-### Mesure de Couverture
-Actuellement activée avec Jest (`--coverage`). Les rapports sont générés dans le dossier `coverage/` et sont téléchargeables via les artifacts GitHub Actions. **Objectif futur** : Intégrer un seuil minimal (ex: 80%) pour bloquer le merge si la couverture baisse.
+### Configuration requise
+
+#### Secrets GitHub (`Settings > Secrets > Actions`)
+
+**Applicatifs** :
+```
+PORT, NODE_ENV, MYSQL_HOST, MYSQL_PORT, MYSQL_DATABASE,
+MYSQL_USER, MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD,
+JWT_SECRET, JWT_EXPIRES_IN,
+BUNNY_API_KEY, BUNNY_STORAGE_ZONE, BUNNY_PULL_ZONE, LOG_LEVEL
+```
+
+**Connexion VPS** :
+```
+VPS_HOST        # IP ou domaine
+VPS_USERNAME    # utilisateur SSH
+VPS_SSH_KEY     # clé privée complète (avec les en-têtes)
+VPS_PORT        # port SSH (défaut : 22)
+```
+
+#### Setup initial sur le VPS
+
+```bash
+git clone https://github.com/Koruji/JDMDEX-back.git
+cd JDMDEX-back
+cp .env.example .env
+nano .env
+docker-compose up -d
+```
+
+Le VPS doit avoir : Node.js 24, Docker, Docker Compose, Git, accès SSH.
+
+### Lancer le pipeline
+
+| Action | Résultat |
+|--------|----------|
+| Push sur `feature/*`, `fix/*`, `ci/*` | Lint + Test uniquement (pas de déploiement) |
+| Push sur `develop` | Lint + Test + Build Docker + Déploiement VPS |
+| Pull Request vers `develop` | Lint + Test uniquement |
+
+Pour vérifier l'état du pipeline : onglet **Actions** du dépôt GitHub → cliquer sur le workflow en cours.
+
+### Dépannage
+
+| Problème | Vérification |
+|----------|-------------|
+| Échec connexion SSH | `VPS_HOST`, `VPS_USERNAME`, `VPS_SSH_KEY` corrects ? Clé dans `~/.ssh/authorized_keys` ? |
+| Permission refusée | Droits d'écriture sur le répertoire de déploiement |
+| Variable manquante | Logs du workflow → étape "Create .env" |
+| Node incompatible | `node -v` sur le VPS → doit être 24 |
+
+**Logs** : onglet **Actions** de GitHub → cliquer sur l'exécution → développer chaque étape.
+
+### Notes de sécurité
+
+- Ne jamais commiter `.env` dans git
+- Utiliser les GitHub Secrets pour toutes les valeurs sensibles
+- Faire une rotation périodique des clés SSH
+- Utiliser des clés de déploiement avec permissions limitées
 
 ## Licence
 

@@ -1,3 +1,17 @@
+# =============================================================
+# JDMDex CI/CD Pipeline
+# =============================================================
+# Déclenchement :
+#   - push sur develop, main, fix/*, ci/*, feature/*
+#   - pull_request vers develop ou main
+#
+# Jobs :
+#   1. lint        → vérifie la qualité du code (ESLint)
+#   2. test        → exécute les tests Jest + génère la couverture
+#   3. build-and-deploy → construit l'image Docker et déploie sur VPS
+#                         (uniquement sur develop et main)
+# =============================================================
+
 name: JDMDex CI/CD
 
 on:
@@ -7,14 +21,25 @@ on:
     branches: [develop, main]
 
 env:
-  NODE_VERSION: '20'
+  # Nom de l'image Docker construite lors du déploiement
   DOCKER_IMAGE: 'jdmdex-api'
 
 jobs:
+
+  # -------------------------------------------------------------
+  # Job 1 : Lint
+  # Vérifie que le code respecte les règles ESLint.
+  # Exécuté en parallèle sur Node 22 et 24 pour détecter
+  # les incompatibilités de syntaxe entre les deux versions LTS.
+  # Ce job doit réussir avant que les tests puissent démarrer.
+  # -------------------------------------------------------------
   lint:
-    name: Lint
+    name: Lint (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
-    
+    strategy:
+      matrix:
+        node-version: ['22', '24']
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -22,7 +47,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
       - name: Install dependencies
@@ -31,11 +56,22 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
+  # -------------------------------------------------------------
+  # Job 2 : Test & Coverage
+  # Lance les tests unitaires et fonctionnels avec Jest.
+  # Génère un rapport de couverture uploadé comme artifact
+  # (disponible 7 jours dans l'onglet Actions de GitHub).
+  # Exécuté en parallèle sur Node 22 et 24.
+  # Ce job dépend du succès du job lint.
+  # -------------------------------------------------------------
   test:
-    name: Test & Coverage
+    name: Test & Coverage (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
     needs: lint
-    
+    strategy:
+      matrix:
+        node-version: ['22', '24']
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -43,12 +79,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
+      # Vérifie la syntaxe de tous les fichiers JS avant d'exécuter les tests
       - name: Check Node syntax
         run: |
           find src -name "*.js" -exec node -c {} \;
@@ -57,33 +94,50 @@ jobs:
       - name: Run tests with coverage
         run: npm test
 
+      # Sauvegarde le rapport de couverture en artifact téléchargeable
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: coverage-report
+          name: coverage-report-node${{ matrix.node-version }}
           path: coverage/
           retention-days: 7
 
+  # -------------------------------------------------------------
+  # Job 3 : Build Docker & Deploy
+  # Construit l'image Docker et déploie sur le VPS via SSH.
+  # Ne s'exécute que sur les branches develop et main.
+  # Dépend du succès du job test (et donc du job lint).
+  #
+  # Étapes :
+  #   1. Génère le fichier .env à partir des GitHub Secrets
+  #   2. Se connecte au VPS via SSH (appleboy/ssh-action)
+  #   3. Pull les derniers changements depuis origin/develop
+  #   4. Reconstruit l'image Docker sans cache
+  #   5. Redémarre les conteneurs avec docker-compose up -d
+  #   6. Vérifie que les conteneurs tournent correctement
+  # -------------------------------------------------------------
   build-and-deploy:
-    name: Build Docker & Deploy to VPS
+    name: Build Docker & Deploy to VPS (Node 24)
     runs-on: ubuntu-latest
     needs: test
     if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
+      # Génère le .env depuis les secrets GitHub pour ne jamais exposer
+      # de valeurs sensibles dans le dépôt
       - name: Create .env file from secrets
         run: |
           echo "Creating .env from GitHub Secrets..."
@@ -109,9 +163,10 @@ jobs:
           echo "" >> .env
           echo "# Logging Configuration" >> .env
           echo "LOG_LEVEL=${{ secrets.LOG_LEVEL || 'error' }}" >> .env
-          
+
           echo "✅ .env file created from secrets"
 
+      # Connexion SSH au VPS et exécution du script de déploiement
       - name: Deploy to VPS via SSH
         uses: appleboy/ssh-action@v1
         with:
@@ -121,17 +176,18 @@ jobs:
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
             echo "=== Deploying JDMDex API with Docker ==="
-            
+
             # Navigation
             cd /home/${{ secrets.VPS_USERNAME }}/JDMDEX-back
-            
+
             echo "Stopping current containers..."
             docker-compose down || true
-            
+
+            # Récupère les derniers commits sans garder de modifications locales
             echo "Pulling latest changes from GitHub..."
             git fetch origin
             git reset --hard origin/develop
-            
+
             echo "Creating .env from secrets..."
             cat > .env << 'EOF'
             PORT=${{ secrets.PORT }}
@@ -149,18 +205,22 @@ jobs:
             BUNNY_PULL_ZONE=${{ secrets.BUNNY_PULL_ZONE }}
             LOG_LEVEL=${{ secrets.LOG_LEVEL || 'error' }}
             EOF
-            
+
+            # --no-cache pour forcer la reconstruction complète et éviter
+            # d'embarquer d'anciens layers en production
             echo "Building Docker image..."
             docker-compose build --no-cache
-            
+
             echo "Starting containers..."
             docker-compose up -d --remove-orphans
-            
+
+            # Pause pour laisser le temps aux conteneurs de démarrer
+            # (healthcheck MariaDB + init de la DB)
             echo "Waiting for containers to start..."
             sleep 10
-            
+
             echo "Verifying deployment..."
             docker-compose ps
             docker-compose logs --tail=20
-            
+
             echo "=== Deployment complete! ==="
