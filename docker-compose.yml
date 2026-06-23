@@ -29,16 +29,11 @@ services:
       - BUNNY_STORAGE_ZONE=${BUNNY_STORAGE_ZONE:-jdmdex}
       - BUNNY_PULL_ZONE=${BUNNY_PULL_ZONE:-jdmdex-cdn.loocist23.fr}
       
-      # File Uploads
-      - MAX_FILE_SIZE=${MAX_FILE_SIZE:-10485760}
-      - UPLOAD_DIR=${UPLOAD_DIR:-./uploads}
-      
       # Logging
       - LOG_DIR=${LOG_DIR:-./logs}
       - LOG_FILE=${LOG_FILE:-./logs/api-errors.log}
       - LOG_LEVEL=${LOG_LEVEL:-error}
     volumes:
-      - ./uploads:/app/uploads
       - ./logs:/app/logs
     networks:
       - jdmdex-network

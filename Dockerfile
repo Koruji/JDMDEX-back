@@ -28,7 +28,6 @@ RUN npm ci --only=production
 
 # Copy built files from builder
 COPY --from=builder /app/src ./src
-COPY --from=builder /app/uploads ./uploads
 
 # Create logs directory
 RUN mkdir -p logs
