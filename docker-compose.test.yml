@@ -1,0 +1,18 @@
+services:
+  mariadb-test:
+    image: mariadb:10.11
+    container_name: jdmdex-mariadb-test
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: jdmdex_test
+      MYSQL_USER: jdmdex_user
+      MYSQL_PASSWORD: jdmdex_pass
+    ports:
+      - "3307:3306"
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-prootpassword"]
+      interval: 5s
+      timeout: 3s
+      retries: 10

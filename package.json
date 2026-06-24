@@ -8,6 +8,9 @@
     "dev": "nodemon src/app.js",
     "test": "jest --runInBand --coverage",
     "test:watch": "jest --watch",
+    "test:integration": "jest --config jest.integration.config.js --runInBand --forceExit",
+    "test:integration:up": "docker-compose -f docker-compose.test.yml up -d --wait",
+    "test:integration:down": "docker-compose -f docker-compose.test.yml down",
     "lint": "eslint src/**/*.js",
     "lint:fix": "eslint src/**/*.js --fix"
   },
@@ -34,6 +37,23 @@
   },
   "jest": {
     "testEnvironment": "node",
-    "testMatch": ["**/tests/**/*.test.js"]
+    "testMatch": ["**/tests/**/*.test.js"],
+    "testPathIgnorePatterns": ["src/tests/integration"],
+    "setupFilesAfterEnv": ["./src/tests/setup.js"],
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/utils/logger.js",
+      "!src/db/database.js",
+      "!src/services/bunny.js",
+      "!src/tests/**"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "statements": 80,
+        "branches": 55,
+        "functions": 70,
+        "lines": 80
+      }
+    }
   }
 }
