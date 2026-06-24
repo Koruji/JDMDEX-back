@@ -44,7 +44,8 @@
       "src/**/*.js",
       "!src/utils/logger.js",
       "!src/db/database.js",
-      "!src/services/bunny.js"
+      "!src/services/bunny.js",
+      "!src/tests/**"
     ],
     "coverageThreshold": {
       "global": {
