@@ -147,3 +147,191 @@ describe('POST /api/events/:id/comments — intégration', () => {
     expect(rows[0].text).toBe('Super meet, j\'y serai !');
   });
 });
+
+// ---------------------------------------------------------------------------
+// GET /api/events/:id
+// ---------------------------------------------------------------------------
+describe('GET /api/events/:id — intégration', () => {
+  test('retourne l\'événement avec ses commentaires', async () => {
+    const token = await registerAndLogin();
+
+    const createRes = await request(app)
+      .post('/api/events')
+      .set('Authorization', `Bearer ${token}`)
+      .send(baseEvent);
+
+    const eventId = createRes.body.id;
+
+    await request(app)
+      .post(`/api/events/${eventId}/comments`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ text: 'Hâte d\'y être !' });
+
+    const res = await request(app)
+      .get(`/api/events/${eventId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.name).toBe('JDM Meet Paris');
+    expect(res.body.comments).toHaveLength(1);
+    expect(res.body.comments[0].text).toBe('Hâte d\'y être !');
+  });
+
+  test('403 si l\'événement appartient à quelqu\'un d\'autre', async () => {
+    const token1 = await registerAndLogin();
+    const res2 = await request(app)
+      .post('/api/auth/register')
+      .send({ username: 'other', email: 'other@test.com', password: 'pass123' });
+    const token2 = res2.body.token;
+
+    const createRes = await request(app)
+      .post('/api/events')
+      .set('Authorization', `Bearer ${token1}`)
+      .send(baseEvent);
+
+    const res = await request(app)
+      .get(`/api/events/${createRes.body.id}`)
+      .set('Authorization', `Bearer ${token2}`);
+
+    expect(res.status).toBe(403);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PUT /api/events/:id
+// ---------------------------------------------------------------------------
+describe('PUT /api/events/:id — intégration', () => {
+  test('met à jour réellement l\'événement en base', async () => {
+    const token = await registerAndLogin();
+
+    const createRes = await request(app)
+      .post('/api/events')
+      .set('Authorization', `Bearer ${token}`)
+      .send(baseEvent);
+
+    const eventId = createRes.body.id;
+
+    const res = await request(app)
+      .put(`/api/events/${eventId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'JDM Meet Lyon', type: 'expo' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.name).toBe('JDM Meet Lyon');
+
+    // Vérification en base
+    const conn = await pool.getConnection();
+    const [rows] = await conn.query('SELECT name, type FROM events WHERE id = ?', [eventId]);
+    conn.release();
+
+    expect(rows[0].name).toBe('JDM Meet Lyon');
+    expect(rows[0].type).toBe('expo');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/events/:id/comments
+// ---------------------------------------------------------------------------
+describe('GET /api/events/:id/comments — intégration', () => {
+  test('retourne les commentaires depuis la base', async () => {
+    const token = await registerAndLogin();
+
+    const createRes = await request(app)
+      .post('/api/events')
+      .set('Authorization', `Bearer ${token}`)
+      .send(baseEvent);
+
+    const eventId = createRes.body.id;
+
+    await request(app)
+      .post(`/api/events/${eventId}/comments`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ text: 'Premier commentaire' });
+
+    await request(app)
+      .post(`/api/events/${eventId}/comments`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ text: 'Deuxième commentaire' });
+
+    const res = await request(app)
+      .get(`/api/events/${eventId}/comments`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PUT /api/events/:id/comments/:commentId
+// ---------------------------------------------------------------------------
+describe('PUT /api/events/:id/comments/:commentId — intégration', () => {
+  test('met à jour réellement le texte du commentaire en base', async () => {
+    const token = await registerAndLogin();
+
+    const createRes = await request(app)
+      .post('/api/events')
+      .set('Authorization', `Bearer ${token}`)
+      .send(baseEvent);
+
+    const eventId = createRes.body.id;
+
+    const commentRes = await request(app)
+      .post(`/api/events/${eventId}/comments`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ text: 'Texte original' });
+
+    const commentId = commentRes.body.id;
+
+    const res = await request(app)
+      .put(`/api/events/${eventId}/comments/${commentId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ text: 'Texte modifié' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.text).toBe('Texte modifié');
+
+    // Vérification en base
+    const conn = await pool.getConnection();
+    const [rows] = await conn.query('SELECT text FROM event_comments WHERE id = ?', [commentId]);
+    conn.release();
+
+    expect(rows[0].text).toBe('Texte modifié');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /api/events/:id/comments/:commentId
+// ---------------------------------------------------------------------------
+describe('DELETE /api/events/:id/comments/:commentId — intégration', () => {
+  test('supprime réellement le commentaire de la base', async () => {
+    const token = await registerAndLogin();
+
+    const createRes = await request(app)
+      .post('/api/events')
+      .set('Authorization', `Bearer ${token}`)
+      .send(baseEvent);
+
+    const eventId = createRes.body.id;
+
+    const commentRes = await request(app)
+      .post(`/api/events/${eventId}/comments`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ text: 'À supprimer' });
+
+    const commentId = commentRes.body.id;
+
+    const res = await request(app)
+      .delete(`/api/events/${eventId}/comments/${commentId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(204);
+
+    // Vérification en base
+    const conn = await pool.getConnection();
+    const [rows] = await conn.query('SELECT * FROM event_comments WHERE id = ?', [commentId]);
+    conn.release();
+
+    expect(rows).toHaveLength(0);
+  });
+});

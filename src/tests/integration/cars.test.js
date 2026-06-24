@@ -155,3 +155,145 @@ describe('DELETE /api/cars/:id — intégration', () => {
     expect(deleteRes.status).toBe(404); // 404 car la requête filtre par user_id
   });
 });
+
+// ---------------------------------------------------------------------------
+// GET /api/cars/:id
+// ---------------------------------------------------------------------------
+describe('GET /api/cars/:id — intégration', () => {
+  test('retourne la voiture avec ses photos depuis la base', async () => {
+    const token = await registerAndLogin();
+
+    const createRes = await request(app)
+      .post('/api/cars')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Honda NSX', brand: 'Honda', year: '1992' });
+
+    const carId = createRes.body.id;
+
+    const res = await request(app)
+      .get(`/api/cars/${carId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.name).toBe('Honda NSX');
+    expect(res.body).toHaveProperty('photos');
+  });
+
+  test('404 si la voiture appartient à un autre utilisateur', async () => {
+    const token1 = await registerAndLogin();
+    const res2 = await request(app)
+      .post('/api/auth/register')
+      .send({ username: 'other', email: 'other@test.com', password: 'pass123' });
+    const token2 = res2.body.token;
+
+    const createRes = await request(app)
+      .post('/api/cars')
+      .set('Authorization', `Bearer ${token1}`)
+      .send({ name: 'Ma voiture' });
+
+    const res = await request(app)
+      .get(`/api/cars/${createRes.body.id}`)
+      .set('Authorization', `Bearer ${token2}`);
+
+    expect(res.status).toBe(404);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/cars/:id (liked)
+// ---------------------------------------------------------------------------
+describe('PATCH /api/cars/:id — intégration', () => {
+  test('met à jour le champ liked en base', async () => {
+    const token = await registerAndLogin();
+
+    const createRes = await request(app)
+      .post('/api/cars')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Mazda RX-7' });
+
+    const carId = createRes.body.id;
+
+    const res = await request(app)
+      .patch(`/api/cars/${carId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ liked: true });
+
+    expect(res.status).toBe(200);
+
+    // Vérification en base
+    const conn = await pool.getConnection();
+    const [rows] = await conn.query('SELECT liked FROM cars WHERE id = ?', [carId]);
+    conn.release();
+
+    expect(rows[0].liked).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/cars/:id/photos
+// ---------------------------------------------------------------------------
+describe('POST /api/cars/:id/photos — intégration', () => {
+  test('insère réellement la photo en base et la lie à la voiture', async () => {
+    const token = await registerAndLogin();
+
+    const createRes = await request(app)
+      .post('/api/cars')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Subaru Impreza' });
+
+    const carId = createRes.body.id;
+
+    const res = await request(app)
+      .post(`/api/cars/${carId}/photos`)
+      .set('Authorization', `Bearer ${token}`)
+      .attach('photos', Buffer.from('fake-image'), 'photo.jpg');
+
+    expect(res.status).toBe(201);
+    expect(res.body.photos).toHaveLength(1);
+    expect(res.body.photos[0].is_primary).toBe(1);
+
+    // Vérification en base
+    const conn = await pool.getConnection();
+    const [rows] = await conn.query('SELECT * FROM photos WHERE car_id = ?', [carId]);
+    conn.release();
+
+    expect(rows).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /api/cars/:id/photos/:photoId
+// ---------------------------------------------------------------------------
+describe('DELETE /api/cars/:id/photos/:photoId — intégration', () => {
+  test('supprime réellement la photo de la base', async () => {
+    const token = await registerAndLogin();
+
+    const createRes = await request(app)
+      .post('/api/cars')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Mitsubishi Evo' });
+
+    const carId = createRes.body.id;
+
+    // Ajouter une photo
+    const photoRes = await request(app)
+      .post(`/api/cars/${carId}/photos`)
+      .set('Authorization', `Bearer ${token}`)
+      .attach('photos', Buffer.from('fake-image'), 'photo.jpg');
+
+    const photoId = photoRes.body.photos[0].id;
+
+    const res = await request(app)
+      .delete(`/api/cars/${carId}/photos/${photoId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(204);
+
+    // Vérification en base
+    const conn = await pool.getConnection();
+    const [rows] = await conn.query('SELECT * FROM photos WHERE id = ?', [photoId]);
+    conn.release();
+
+    expect(rows).toHaveLength(0);
+  });
+});
