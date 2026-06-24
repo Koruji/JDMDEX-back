@@ -100,6 +100,15 @@ describe('PUT /api/users/me', () => {
     expect(res.body).toHaveProperty('username', 'nouveau');
   });
 
+  test('400 si aucun champ fourni', async () => {
+    const res = await request(app)
+      .put('/api/users/me')
+      .set('Authorization', `Bearer ${validToken()}`)
+      .send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/must be provided/i);
+  });
+
   test('409 si le username est déjà pris par quelqu\'un d\'autre', async () => {
     makeConnection([
       [[{ id: 99 }]], // conflit : un autre user a ce username
@@ -109,6 +118,38 @@ describe('PUT /api/users/me', () => {
       .set('Authorization', `Bearer ${validToken()}`)
       .send({ username: 'pris' });
     expect(res.status).toBe(409);
+  });
+
+  test('409 si l\'email est déjà pris par quelqu\'un d\'autre', async () => {
+    makeConnection([
+      [[]], // pas de conflit username
+      [[{ id: 99 }]], // conflit email
+    ]);
+    const res = await request(app)
+      .put('/api/users/me')
+      .set('Authorization', `Bearer ${validToken()}`)
+      .send({ username: 'libre', email: 'pris@example.com' });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/email already exists/i);
+  });
+
+  test('200 mise à jour avec social_media', async () => {
+    const updatedUser = {
+      id: 1, username: 'testuser', email: 'test@example.com',
+      social_media: '@jdmfan', profil_img_url: null,
+    };
+    makeConnection([
+      [[]], // pas de conflit username
+      [[]], // pas de conflit email
+      [{ affectedRows: 1 }], // UPDATE
+      [[updatedUser]], // SELECT
+    ]);
+    const res = await request(app)
+      .put('/api/users/me')
+      .set('Authorization', `Bearer ${validToken()}`)
+      .send({ username: 'testuser', email: 'test@example.com', social_media: '@jdmfan' });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('social_media', '@jdmfan');
   });
 });
 

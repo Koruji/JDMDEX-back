@@ -259,4 +259,52 @@ describe('DELETE /api/cars/:id/photos/:photoId', () => {
     const res = await request(app).delete('/api/cars/999/photos/5').set(authHeader());
     expect(res.status).toBe(404);
   });
+
+  test('403 si la photo appartient à une voiture d\'un autre utilisateur', async () => {
+    makeConnection([[[{ id: 5, user_id: 99, filename: 'path.jpg', is_primary: 0 }]]]);
+    const res = await request(app).delete('/api/cars/1/photos/5').set(authHeader());
+    expect(res.status).toBe(403);
+  });
+
+  test('204 après suppression d\'une photo non principale', async () => {
+    makeConnection([
+      [[{ id: 5, user_id: 1, filename: 'path.jpg', is_primary: 0 }]], // SELECT photo
+      [{ affectedRows: 1 }], // DELETE photo
+    ]);
+    const res = await request(app).delete('/api/cars/1/photos/5').set(authHeader());
+    expect(res.status).toBe(204);
+  });
+
+  test('204 + mise à jour photo principale si la photo supprimée était primaire', async () => {
+    makeConnection([
+      [[{ id: 5, user_id: 1, filename: 'path.jpg', is_primary: 1 }]], // SELECT photo (primary)
+      [{ affectedRows: 1 }],     // DELETE photo
+      [[{ id: 6 }]],             // SELECT prochaine photo
+      [{ affectedRows: 1 }],     // UPDATE is_primary
+    ]);
+    const res = await request(app).delete('/api/cars/1/photos/5').set(authHeader());
+    expect(res.status).toBe(204);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/cars/:id/photos (avec fichier)
+// ---------------------------------------------------------------------------
+describe('POST /api/cars/:id/photos (avec upload)', () => {
+  test('201 après ajout de photos avec succès', async () => {
+    const photoInDb = { id: 10, car_id: 1, filename: 'cars/1/1/photo.jpg', is_primary: 1 };
+    makeConnection([
+      [[fakeCar]],           // SELECT car (ownership)
+      [[]],                   // SELECT existing primary (aucune)
+      [{ insertId: 10 }],    // INSERT photo
+      [[fakeCar]],           // SELECT car pour carWithPhotos
+      [[photoInDb]],          // SELECT photos
+    ]);
+    const res = await request(app)
+      .post('/api/cars/1/photos')
+      .set(authHeader())
+      .attach('photos', Buffer.from('fake-image'), 'photo.jpg');
+    expect(res.status).toBe(201);
+    expect(res.body.photos).toHaveLength(1);
+  });
 });

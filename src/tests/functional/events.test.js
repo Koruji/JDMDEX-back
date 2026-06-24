@@ -288,3 +288,97 @@ describe('POST /api/events/:id/comments', () => {
     expect(res.body).toHaveProperty('text', 'Top event!');
   });
 });
+
+// ---------------------------------------------------------------------------
+// PUT /api/events/:id/comments/:commentId
+// ---------------------------------------------------------------------------
+describe('PUT /api/events/:id/comments/:commentId', () => {
+  test('401 sans token', async () => {
+    const res = await request(app)
+      .put('/api/events/uuid-1/comments/c1')
+      .send({ text: 'modifié' });
+    expect(res.status).toBe(401);
+  });
+
+  test('400 si text manquant', async () => {
+    const res = await request(app)
+      .put('/api/events/uuid-1/comments/c1')
+      .set(authHeader())
+      .send({});
+    expect(res.status).toBe(400);
+  });
+
+  test('404 si commentaire introuvable', async () => {
+    makeConnection([[[]]]); // aucun commentaire
+    const res = await request(app)
+      .put('/api/events/uuid-1/comments/c999')
+      .set(authHeader())
+      .send({ text: 'modifié' });
+    expect(res.status).toBe(404);
+  });
+
+  test('403 si le commentaire appartient à quelqu\'un d\'autre', async () => {
+    makeConnection([[[{ id: 'c1', user_id: 99 }]]]);
+    const res = await request(app)
+      .put('/api/events/uuid-1/comments/c1')
+      .set(authHeader())
+      .send({ text: 'modifié' });
+    expect(res.status).toBe(403);
+  });
+
+  test('200 après mise à jour du commentaire', async () => {
+    const updatedComment = {
+      id: 'c1', event_id: 'uuid-1', user_id: 1,
+      text: 'modifié', created_at: '2024-06-01',
+      username: 'testuser', profil_img_url: null,
+    };
+    makeConnection([
+      [[{ id: 'c1', user_id: 1 }]], // SELECT comment (ownership)
+      [{ affectedRows: 1 }],         // UPDATE
+      [[updatedComment]],             // SELECT mis à jour
+    ]);
+    const res = await request(app)
+      .put('/api/events/uuid-1/comments/c1')
+      .set(authHeader())
+      .send({ text: 'modifié' });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('text', 'modifié');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /api/events/:id/comments/:commentId
+// ---------------------------------------------------------------------------
+describe('DELETE /api/events/:id/comments/:commentId', () => {
+  test('401 sans token', async () => {
+    const res = await request(app).delete('/api/events/uuid-1/comments/c1');
+    expect(res.status).toBe(401);
+  });
+
+  test('404 si commentaire introuvable', async () => {
+    makeConnection([[[]]]); // aucun commentaire
+    const res = await request(app)
+      .delete('/api/events/uuid-1/comments/c999')
+      .set(authHeader());
+    expect(res.status).toBe(404);
+  });
+
+  test('403 si le commentaire appartient à quelqu\'un d\'autre', async () => {
+    makeConnection([[[{ id: 'c1', user_id: 99 }]]]);
+    const res = await request(app)
+      .delete('/api/events/uuid-1/comments/c1')
+      .set(authHeader());
+    expect(res.status).toBe(403);
+  });
+
+  test('204 après suppression réussie', async () => {
+    makeConnection([
+      [[{ id: 'c1', user_id: 1 }]], // SELECT comment
+      [{ affectedRows: 1 }],         // DELETE
+    ]);
+    const res = await request(app)
+      .delete('/api/events/uuid-1/comments/c1')
+      .set(authHeader());
+    expect(res.status).toBe(204);
+  });
+});
