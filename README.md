@@ -18,12 +18,20 @@ Le frontend ne fait qu'appeler ces routes — aucune logique métier ne lui est 
 
 > Y a-t-il des tests ? Faut-il en écrire ?
 
-**Oui, des tests existent.** Le dossier `src/tests/` contient des tests unitaires (génération de tokens JWT, middleware d'authentification) et des tests fonctionnels (vérification des droits d'accès par propriétaire). Ils sont exécutés avec Jest et la couverture est générée à chaque CI.
+**Oui, des tests existent.** Le dossier `src/tests/` est structuré en trois niveaux, exécutés avec Jest, et la couverture est générée à chaque CI.
 
-Ce qui manque encore et mériterait d'être ajouté :
-- Tests d'intégration sur les routes CRUD (cars, events, users) avec une base de test dédiée
-- Tests de la route d'upload photo (mock Bunny CDN)
-- Un seuil de couverture minimum dans la CI (ex : 80%) pour bloquer un merge si la couverture régresse
+**Unit** (`src/tests/unit/`) — teste les fonctions pures du middleware sans serveur ni base de données.
+- Génération et validation de JWT (`generateToken`, `authenticateToken`)
+- `checkOwnership` : accès accordé si l'utilisateur est propriétaire, 403 sinon, 401 si non authentifié
+
+**Functional** (`src/tests/functional/`) — teste les routes HTTP via Supertest avec la base de données mockée (Jest mock sur `pool.getConnection`). Le CDN Bunny et bcrypt sont aussi mockés pour que les tests restent rapides et déterministes.
+- `auth.test.js` : register (validation email/password, unicité), login (credentials invalides, token retourné), `/me`
+- `users.test.js` : CRUD profil utilisateur, upload photo de profil
+- `cars.test.js` : CRUD voitures, upload/suppression de photos
+- `events.test.js` : CRUD événements + commentaires, contrôle d'accès (ownership)
+- `middleware.test.js` : comportement du middleware auth sur les routes protégées (401 sans token, 403 token invalide)
+
+**Integration** (`src/tests/integration/`) — tests end-to-end sur une vraie base MySQL de test (via `docker-compose.test.yml`). Rien n'est mocké : on vérifie que les données sont réellement persistées et que les contraintes d'unicité (email, username) sont appliquées côté base.
 
 > Y a-t-il un build à produire ?
 
