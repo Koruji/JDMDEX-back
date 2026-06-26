@@ -13,6 +13,8 @@ All car-related endpoints require a valid JWT token in the `Authorization` heade
 
 ### Register
 
+salut toi
+
 Create a new user account.
 
 **Request:**
